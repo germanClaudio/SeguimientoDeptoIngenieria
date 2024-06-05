@@ -99,7 +99,7 @@ const config = {
   },
 
   target: "node",
-
+  devtool: 'none',
 };
 
 module.exports = () => {

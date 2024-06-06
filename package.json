@@ -37,6 +37,7 @@
     "aws-sdk": "^2.1613.0",
     "axios": "^1.6.8",
     "bcrypt": "^5.1.1",
+    "bcrypto": "^5.5.2",
     "browserify-zlib": "^0.2.0",
     "chokidar": "^3.6.0",
     "compression": "^1.7.4",

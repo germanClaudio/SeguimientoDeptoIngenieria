@@ -2,6 +2,11 @@ const ProyectosService = require("../services/projects.service.js")
 const ClientesService = require("../services/clients.service.js")
 const UserService = require("../services/users.service.js")
 
+// @ts-ignore
+//**************** */
+require('dotenv').config();
+//********************** */
+
 const multer = require('multer')
 
 let now = require('../utils/formatDate.js')
@@ -10,9 +15,13 @@ let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.pn
 const { Storage } = require('@google-cloud/storage');
 const sharp = require('sharp');
 
+//****************/
+const credentials = require("../options/decription.js")
+//****************/
+
 const storageToGCS = new Storage({
     projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: process.env.GOOGLE_STORE_CREDENTIALS, // Ruta al archivo de credenciales de servicio
+    keyFilename: credentials, // Ruta al archivo de credenciales de servicio
 });
 
 function uploadToGCS(req, res) { //async

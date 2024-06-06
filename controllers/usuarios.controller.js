@@ -4,8 +4,13 @@ const ClientesService = require("../services/clients.service.js")
 const MessagesService = require("../services/messages.service.js")
 
 const bCrypt = require('bcrypt')
-const { generateToken } = require('../utils/generateToken')
+// @ts-ignore
+//**************** */
+const crypto = require('crypto');
+require('dotenv').config();
+//********************** */
 
+const { generateToken } = require('../utils/generateToken')
 const multer = require('multer')
 
 let now = require('../utils/formatDate.js')
@@ -14,9 +19,13 @@ let userPictureNotFound = "../../../src/images/upload/AvatarUsersImages/incognit
 const { Storage } = require('@google-cloud/storage');
 const sharp = require('sharp');
 
+//****************/
+const credentials = require("../options/decription.js")
+//****************/
+
 const storageToGCS = new Storage({
     projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: process.env.GOOGLE_STORE_CREDENTIALS, // Ruta al archivo de credenciales de servicio
+    keyFilename: credentials, // Ruta al archivo de credenciales de servicio
 });
 
 async function uploadToGCS(req, res) {

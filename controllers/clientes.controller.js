@@ -4,8 +4,7 @@ const ProjectsService = require("../services/projects.service.js")
 
 // @ts-ignore
 //**************** */
-const crypto = require('crypto');
-require('dotenv').config();
+const { readEncodedFile } = require('../options/fileHandler.js');
 //********************** */
 
 const multer = require('multer')
@@ -16,13 +15,11 @@ let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.pn
 const { Storage } = require('@google-cloud/storage');
 const sharp = require('sharp');
 
-//****************/
-const credentials = require("../options/decription.js")
-//****************/
 
 const storageToGCS = new Storage({
     projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: credentials,
+    keyFilename: process.env.ENCODED_FILE_PATH,
+    // credentials: credentials,
 });
 
 async function uploadToGCS(req, res) {
@@ -43,6 +40,12 @@ async function uploadToGCS(req, res) {
             flag
         })
     }
+
+    const credentials = await readEncodedFile();
+    const storageToGCS = new Storage({
+        projectId: process.env.PROJECT_ID_GCS,
+        credentials: credentials,
+    });
 
     let bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS); // Nombre bucket en Google Cloud Storage
     let folderName = 'upload';

@@ -9,7 +9,7 @@ compose.yaml
 
 
 web-app-seguimiento-proyectos-793b60720f6d.json
-encription.js
+encryption.js
 generateHexKey.js
 
 azure-webapps-node.yml

@@ -6,8 +6,7 @@ const MessagesService = require("../services/messages.service.js")
 const bCrypt = require('bcrypt')
 // @ts-ignore
 //**************** */
-const crypto = require('crypto');
-require('dotenv').config();
+const { readEncodedFile } = require('../options/fileHandler.js');
 //********************** */
 
 const { generateToken } = require('../utils/generateToken')
@@ -19,14 +18,6 @@ let userPictureNotFound = "../../../src/images/upload/AvatarUsersImages/incognit
 const { Storage } = require('@google-cloud/storage');
 const sharp = require('sharp');
 
-//****************/
-const credentials = require("../options/decription.js")
-//****************/
-
-const storageToGCS = new Storage({
-    projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: credentials, // Ruta al archivo de credenciales de servicio
-});
 
 async function uploadToGCS(req, res) {
     const flag = {
@@ -43,6 +34,12 @@ async function uploadToGCS(req, res) {
             flag
         })
     }
+
+    const credentials = await readEncodedFile();
+    const storageToGCS = new Storage({
+        projectId: process.env.PROJECT_ID_GCS,
+        credentials: credentials,
+    });
 
     let bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS); // Nombre bucket en Google Cloud Storage
     let folderName = 'upload';

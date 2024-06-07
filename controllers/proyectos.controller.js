@@ -4,7 +4,7 @@ const UserService = require("../services/users.service.js")
 
 // @ts-ignore
 //**************** */
-require('dotenv').config();
+const { readEncodedFile } = require('../options/fileHandler.js');
 //********************** */
 
 const multer = require('multer')
@@ -15,14 +15,6 @@ let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.pn
 const { Storage } = require('@google-cloud/storage');
 const sharp = require('sharp');
 
-//****************/
-const credentials = require("../options/decription.js")
-//****************/
-
-const storageToGCS = new Storage({
-    projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: credentials, // Ruta al archivo de credenciales de servicio
-});
 
 function uploadToGCS(req, res) { //async
     const error = 'Error en carga de Imagen o Imagenes a Google Cloud Storage'
@@ -43,6 +35,12 @@ function uploadToGCS(req, res) { //async
             flag
         })
     }
+
+    const credentials = readEncodedFile();
+    const storageToGCS = new Storage({
+        projectId: process.env.PROJECT_ID_GCS,
+        credentials: credentials,
+    });
     
     let folderName = 'upload';
     let subFolderName = 'projectImages';
@@ -58,7 +56,6 @@ function uploadToGCS(req, res) { //async
     .filter(value => value); // Filtrar valores no vacíos
 
     let newImageFileNames = imagesFileNames.map(element => element.match(/[^\/]+$/)[0])
-
     // console.log('63-newImageFileNames: ', newImageFileNames);
 
     //**********req.files******** */
@@ -163,6 +160,13 @@ async function uploadToGCSingleFile(req, res) {
             flag
         })
     }
+
+    const credentials = await readEncodedFile();
+    const storageToGCS = new Storage({
+        projectId: process.env.PROJECT_ID_GCS,
+        credentials: credentials,
+    });
+
     // console.log('157-req.body: ', req.body)
     let bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS); // Nombre bucket en Google Cloud Storage
     let folderName = 'upload';

@@ -3,6 +3,8 @@ const mongoose = require('mongoose')
 const Usuarios = require('../../models/usuarios.models.js')
 const Sessions = require('../../models/sessions.models.js')
 
+const advancedOptions = { connectTimeoutMS: 30000, socketTimeoutMS: 45000 }
+
 const now = require('../../utils/formatDate.js')
 const bCrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
@@ -17,12 +19,7 @@ class UsuariosDaoMongoDB extends ContainerMongoDB {
 
     async init() {
         // await this.connection
-        // console.log('Connected to << ** MongoDB Server ** >> by configMongoDB')
-        // await this.connection
-        mongoose.connect(this.cnxStr, { //createConnection or connect
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        })
+        mongoose.connect(this.cnxStr, advancedOptions)
         console.log('Connected to MongoDB Server 1-2-3 - UsuariosDaoFactory.js')
     }
 

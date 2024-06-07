@@ -2,6 +2,8 @@ const ContainerMongoDBSessions = require('../../contenedores/containerMongoDB.js
 const mongoose = require('mongoose')
 const Sessions = require('../../models/sessions.models.js')
 
+const advancedOptions = { connectTimeoutMS: 30000, socketTimeoutMS: 45000 }
+
 class SessionsDaoMongoDB extends ContainerMongoDBSessions {
     constructor(conexionStr) {
         super(conexionStr)
@@ -9,9 +11,7 @@ class SessionsDaoMongoDB extends ContainerMongoDBSessions {
 
     async init() {
         // await this.connectionSession
-        mongoose.connect(this.cnxStr, {
-            connectTimeoutMS: 30000,
-        })
+        mongoose.connect(this.cnxStr, advancedOptions)
         console.log('Connected to MongoDB Server 1-2-3 - SessionsDaoFactory.js')
    }
 

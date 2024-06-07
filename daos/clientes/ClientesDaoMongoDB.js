@@ -2,6 +2,8 @@ const ContenedorMongoDB = require('../../contenedores/containerMongoDB.js')
 const mongoose = require('mongoose')
 const Clientes = require('../../models/clientes.models.js')
 
+const advancedOptions = { connectTimeoutMS: 30000, socketTimeoutMS: 45000 }
+
 const now = require('../../utils/formatDate.js')
 
 class ClientesDaoMongoDB extends ContenedorMongoDB {
@@ -11,10 +13,7 @@ class ClientesDaoMongoDB extends ContenedorMongoDB {
 
     async init() {
         // await this.connection
-        mongoose.connect(this.cnxStr, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        })
+        mongoose.connect(this.cnxStr, advancedOptions)
         console.log('Connected to MongoDB Server 1-2-3 - ClientesDaoFactory.js')
     }
     

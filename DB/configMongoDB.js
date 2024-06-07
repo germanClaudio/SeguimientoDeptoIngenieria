@@ -2,6 +2,8 @@
 const mongoose = require('mongoose')
 mongoose.set('strictQuery', false) // seteo Mongoose Eliminar si no hace nada!!
 
+const advancedOptions = { connectTimeoutMS: 30000, socketTimeoutMS: 45000 }
+
 const ClientsSchema = require('../models/clientes.models.js')
 const UserSchema = require('../models/usuarios.models.js')
 const SessionSchema = require('../models/sessions.models.js')
@@ -24,10 +26,7 @@ module.exports = class dbConnection {
             // const dbName = process.env.DBMONGO_NAME;
             // const database = client.db(dbName);
             // console.log(`Connected to MongDB - ${database}`)
-            mongoose.connect(this.cnxStr, {
-                useNewUrlParser: true,
-                useUnifiedTopology: true
-            })
+            mongoose.connect(this.cnxStr, advancedOptions)
             console.log('Connected to MongoDB Server 1-2-3 - UsuariosDaoFactory.js')
         } catch (error) {
             console.error('Error connection to DB: '+ error)

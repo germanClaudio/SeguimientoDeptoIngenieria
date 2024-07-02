@@ -4,6 +4,8 @@ const Clientes = require('../../models/clientes.models.js')
 
 const advancedOptions = { connectTimeoutMS: 30000, socketTimeoutMS: 45000 }
 
+const { switchFilterClients } = require('../../utils/switchFilterClients.js')
+
 const now = require('../../utils/formatDate.js')
 
 class ClientesDaoMongoDB extends ContenedorMongoDB {
@@ -71,6 +73,22 @@ class ClientesDaoMongoDB extends ContenedorMongoDB {
         }
     }
 
+    async getClientByName(name) {   
+        if(name){
+            try {
+                const client = await Clientes.findOne({name: name})
+                // console.info('Cliente encontrado: ',client)
+                return client
+
+            } catch (error) {
+                console.error("Error MongoDB getClientByName-Dao: ",error)
+            }
+
+        } else {
+            return false
+        }
+    }
+
     async selectClientById(id) {
 
         if(id){
@@ -134,33 +152,34 @@ class ClientesDaoMongoDB extends ContenedorMongoDB {
         }
     }
 
+    async getExistingClient(newClient) {
+        
+        if (newClient) {
+            const client = await Clientes.findOne(
+                { $or: [ {name: `${newClient.name}`},
+                         {code: `${newClient.code}`}
+                       ]
+                });
+
+            if (client) {
+                return client
+                
+            } else {
+                return false
+            }
+
+        } else {
+            return new Error (`No se pudo encontrar al Cliente!`)
+        }
+    }
+
     async createNewClient(client){
         if(client) {
             try {
                 const itemMongoDB = await Clientes.findOne({name: `${client.name}`})
                 if (itemMongoDB) {
-                    console.error("Cliente con Nombre existente!! ")
-                    var updatedClient = await Clientes.updateOne(
-                        { _id: itemMongoDB._id },
-                        {
-                            $set: {
-                                status: Boolean(true),
-                                visible: Boolean(true),
-                                modificator: itemMongoDB.creator,
-                                modifiedOn: now
-                            }
-                        },
-                        { new: true }
-                    )
-                    
-                    if(updatedClient.acknowledged) {
-                        const itemUpdated = await Clientes.findById({ _id: itemMongoDB._id })
-                        return itemUpdated
-
-                    } else {
-                        return new Error(`No se pudo crear el item: ${itemUpdated._id}`)
-                    }
-                    // return new Error (`Cliente ya existe con este nombre: ${client.name}!`)
+                    // console.error("Cliente con Nombre existente!! ")
+                    return new Error (`Cliente ya existe con este nombre: ${client.name}!`)
                 } else {
                     const newClient = new Clientes(client)
                     await newClient.save()
@@ -333,27 +352,10 @@ class ClientesDaoMongoDB extends ContenedorMongoDB {
         }
     }
 
-    // async getClientBySearching(client) {
-    //     if(client) {
-    //         try {
-    //             const nameClient = await Clientes.findOne({ name: `${client}`}).exec();
-    //             const codeClient = await Clientes.findOne({ code: `${client}`}).exec();
-    
-    //             if(nameClient || codeClient) {
-    //                 return nameClient
-    //             } else {
-    //                 return false
-    //             }
-    //         } catch (error) {
-    //             console.error("Error MongoDB getByNameOrCode: ",error)
-    //         }
-    //     } else {
-    //         return new Error (`No se pudo concretar la busqueda en la DB!`)
-    //     }
-    // }
-
     async getClientBySearching(query) {
         var filter
+        var nameAndCodeQuery = [{ 'name': { $regex: `${query.query}`, $options: 'i' } }, 
+                                { 'code': { $regex: `${query.query}`, $options: 'i' } }]
 
         if (query.query === '') {
             if (query.status === 'todos') {
@@ -413,175 +415,10 @@ class ClientesDaoMongoDB extends ContenedorMongoDB {
                 }
             }
         }
-        
+
         try {
-            switch (filter) {
-                case 'nullAllAll': {
-                    var resultados = ['vacio'] // []
-                break;
-                }
-                case 'nullAllWith': {
-                    var resultados = await Clientes.find({
-                        'project': { $gt: 0 } // Proyectos mayores que 0
-                    })
-                break;
-                }
-                case 'nullAllWithout': {
-                    var resultados = await Clientes.find({
-                        'project': { $eq: 0 }
-                    })
-                break;    
-                }
-                case 'nullActiveAll': {
-                    var resultados = await Clientes.find({
-                        'status': true,
-                    })
-                    break;
-                }
-                case 'nullActiveWith': {
-                    var resultados = await Clientes.find({
-                        'status': true,
-                        'project': { $gt: 0 }
-                    })
-                    break;
-                }
-                case 'nullActiveWithout': {
-                    var resultados = await Clientes.find({
-                        'status': true,
-                        'project': { $eq: 0 } 
-                        
-                    })
-                    break;
-                }
-                case 'nullInactiveAll': {
-                    var resultados = await Clientes.find({
-                        'status': false
-                    })
-                    break;
-                }
-                case 'nullInactiveWith': {
-                    var resultados = await Clientes.find({
-                        'status': false,
-                        'projects': { $gt: 0 }
-                    })
-                    break;
-                }
-                case 'nullInactiveWithout': {
-                    var resultados = await Clientes.find({
-                        'status': false,
-                        'projects': { $eq: 0 }
-                    })
-                    break;
-                }
-                //--------------- input w/text ----------
-                case 'notNullAllAll': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullAllWith': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'project': { $gt: 0 } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullAllWithout': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'project': { $eq: 0 } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullActiveAll': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'status': true }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullActiveWith': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'status': true },
-                            { 'project': { $gt: 0 } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullActiveWithout': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'status': true },
-                            { 'project': { $eq: 0 } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullInactiveAll': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullInactiveWith': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'status': false },
-                            { 'project': { $gt: 0 } }
-                        ]
-                    })
-                    break;
-                }
-                case 'notNullInactiveWithout': {
-                    var resultados = await Clientes.find({
-                        $or: [
-                            { 'name': { $regex: `${query.query}`, $options: 'i' } }, 
-                            { 'code': { $regex: `${query.query}`, $options: 'i' } }
-                        ],
-                        $and: [
-                            { 'status': false },
-                            { 'project': { $eq: 0 } }
-                        ]
-                    })
-                    break;
-                }
-            }
-                
+            const resultados = await switchFilterClients(filter, Clientes, nameAndCodeQuery)
+
             if(resultados) {
                 return resultados
             } else {

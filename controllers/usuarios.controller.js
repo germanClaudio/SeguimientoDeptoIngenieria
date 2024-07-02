@@ -15,7 +15,6 @@ const csrfTokens = csrf();
 let now = require('../utils/formatDate.js')
 let userPictureNotFound = "../../../src/images/upload/AvatarUsersImages/incognito.jpg"
 
-
 const sessionTime = parseInt(process.env.SESSION_TIME) // 12 HORAS
 
 

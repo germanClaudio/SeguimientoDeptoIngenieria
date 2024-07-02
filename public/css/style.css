@@ -692,13 +692,13 @@ Splash Container / Wrapper
 -------------------------*/
 
 .error-section {
-  padding: 74px 0px;
+  padding: 4rem 0px;
 }
 
 .error-section-content {
-  padding-top: 30px;
+  padding-top: 1rem;
   color: #3d405c;
-  padding-bottom: 30px;
+  padding-bottom: 1.5rem;
 }
 
   /*-------------------
@@ -1159,3 +1159,8 @@ form.dropzone {
   box-shadow:0px 0px 5px 5px #55555542;
 }
 /*********************************/
+
+#avatarUser {
+  object-fit: cover;
+  object-position: center;
+}

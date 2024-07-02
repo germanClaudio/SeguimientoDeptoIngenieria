@@ -1,5 +1,5 @@
-let URL_GOOGLE_STORE_AVATARS='https://storage.googleapis.com/imagenesproyectosingenieria/upload/AvatarUsersImages/'
 const socket = io.connect()
+let URL_GOOGLE_STORE_AVATARS='https://storage.googleapis.com/imagenesproyectosingenieria/upload/AvatarUsersImages/'
 
 function formatDate(date) {
     const DD = String(date.getDate()).padStart(2, '0');
@@ -33,9 +33,29 @@ const renderUser = (arrUsers) => {
         let optionStatus = element.status ? green : red
         let optionAdmin = element.admin ? dark : grey
         var optionPermiso = element.permiso ? grey : red
+        var optionArea = element.area ? cian : green
         let showStatus = element.status ? active : inactive
         let showAdmin = element.admin ? admin : user
         let idChain = element._id.substring(19)
+        var showArea = "Ingeniería"
+
+            if (element.area === 'ingenieria') {
+                showArea
+                optionArea = cian
+            } else if (element.area === "fabricacion") {
+                showArea = 'Simulación'
+                optionArea = yellow
+            } else if (element.area === "administracion") {
+                showArea = grey
+                optionArea = yellow
+            } else if (element.area === "proyectos") {
+                showArea = dark
+                optionArea = yellow
+            } else {
+                showArea = 'Todas'
+                optionArea = green
+            }
+
         var showPermiso = "Diseño/Simulación"
         
             if (element.permiso === 'diseno') {
@@ -47,11 +67,53 @@ const renderUser = (arrUsers) => {
             } else if (element.permiso === "disenoSimulacion") {
                 showPermiso
                 optionPermiso = red
+            } else if (element.permiso === "cadCam") {
+                showPermiso = 'Cad-Cam'
+                optionPermiso = grey
+            } else if (element.permiso === "projectManager") {
+                showPermiso = 'Project Manager'
+                optionPermiso = dark
+            } else if (element.permiso === "mecanizado") {
+                showPermiso = 'Mecanizado'
+                optionPermiso = yellow
+            } else if (element.permiso === "ajuste") {
+                showPermiso = 'Ajuste'
+                optionPermiso = red
             } else {
-                showPermiso = 'Sin permisos asociados'
+                showPermiso = 'Todos'
+                optionPermiso = green
             }
 
-            if(element.visible) {
+            var superAdmin = element.superAdmin ? '<i class="fa-solid fa-crown fa-rotate-by fa-xl" title="SuperAdmin" style="color: #a89c0d; --fa-rotate-angle: 20deg;"></i>' : null
+
+            if (element.visible && element.superAdmin) {
+                return (`<tr>
+                            <th scope="row" class="text-center"><strong>...${idChain}</strong>${superAdmin}</th>
+                            <td class="text-center" id="legajoId_${element._id}">${element.legajoId}</td>
+                            <td class="text-center" id="name_${element._id}">${element.name}</td>
+                            <td class="text-center" id="lastName_${element._id}">${element.lastName}</td>
+                            <td class="text-center" id="email_${element._id}">${element.email}</td>
+                            <td class="text-center" id="username_${element._id}">${element.username}</td>
+                            <td class="text-center"><img class="img-fluid rounded-3 py-2" alt="Avatar" src='${element.avatar}' width="90px" height="70px"></td>
+                            <td class="text-center"><span class="badge rounded-pill bg-${optionStatus}"> ${showStatus} </span></td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill bg-${optionAdmin} position-relative">
+                                    ${showAdmin}
+                                    <span class="position-absolute top-0 start-100 translate-middle">
+                                        ${superAdmin}
+                                    </span>
+                                </span>
+                            </td>
+                            <td class="text-center"><span class="badge rounded-pill bg-${optionArea}"> ${showArea} </span></td>
+                            <td class="text-center"><span class="badge text-bg-${optionPermiso}"> ${showPermiso} </span></td>
+                            <td class="text-center">
+                                <div class="d-block align-items-center text-center">
+                                    <a href="/api/usuarios/${element._id}" class="btn btn-primary btn-sm me-1"><i class="fa-solid fa-user-pen"></i></a>
+                                    <button id="${element._id}" name="btnDeleteUser" type="button" class="btn btn-danger btn-sm ms-1" title="Eliminar Usuario ${element.username}"><i class="fa-regular fa-trash-can"></i></button>
+                                </div>
+                            </td>
+                        </tr>`)
+            } else {
                 return (`<tr>
                             <th scope="row" class="text-center"><strong>...${idChain}</strong></th>
                             <td class="text-center" id="legajoId_${element._id}">${element.legajoId}</td>
@@ -62,6 +124,7 @@ const renderUser = (arrUsers) => {
                             <td class="text-center"><img class="img-fluid rounded-3 py-2" alt="Avatar" src='${element.avatar}' width="90px" height="70px"></td>
                             <td class="text-center"><span class="badge rounded-pill bg-${optionStatus}"> ${showStatus} </span></td>
                             <td class="text-center"><span class="badge rounded-pill bg-${optionAdmin}"> ${showAdmin} </span></td>
+                            <td class="text-center"><span class="badge rounded-pill bg-${optionArea}"> ${showArea} </span></td>
                             <td class="text-center"><span class="badge text-bg-${optionPermiso}"> ${showPermiso} </span></td>
                             <td class="text-center">
                                 <div class="d-block align-items-center text-center">
@@ -149,7 +212,7 @@ const renderUser = (arrUsers) => {
                     Swal.fire({
                         title: `Atención!`,
                         position: 'center',
-                        text: 'Usted no puede eliminase a si mismo',
+                        text: 'Usted no puede eliminase a sí mismo',
                         icon: 'warning',
                         showCancelButton: true,
                         showConfirmButton: false,
@@ -377,35 +440,40 @@ removeImageButtonAvatarUser.addEventListener('click', (e)=> {
 })
 
 
-function messageNewUser(name, lastName, username, legajoId) {
-    Swal.fire({
-        title: `Nuevo Usuario <b>${username}</b>`,
-        text: `El usuario ${name} ${lastName} será registrado!`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        focusConfirm: true,
-        confirmButtonText: 'Registrarlo! <i class="fa-solid fa-user-plus"></i>',
-        cancelButtonText: 'Cancelar <i class="fa-solid fa-user-xmark"></i>'
+function messageNewUser(name, lastName, username, legajoId, email) {
 
-      }).then((result) => {
-        if (result.isConfirmed) {
-            document.getElementById("newUserForm").submit()
-          Swal.fire(
-            'Creado!',
-            `El usuario ${name} ${lastName}, legajo #:${legajoId}, ha sido registrado exitosamente.`,
-            'success'
-          )
-        } else {
-            Swal.fire(
-                'No registrado!',
-                `El usuario ${name} ${lastName}, no ha sido registrado`,
-                'info'
-              )
-            return false
-        }
-      })
+    if (username, legajoId, email) {
+        Swal.fire({
+            title: `Nuevo Usuario <b>${username}</b>`,
+            text: `El usuario ${name} ${lastName} será registrado!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            focusConfirm: true,
+            confirmButtonText: 'Registrarlo! <i class="fa-solid fa-user-plus"></i>',
+            cancelButtonText: 'Cancelar <i class="fa-solid fa-user-xmark"></i>'
+    
+          }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById("newUserForm").submit()
+                setTimeout(() => {
+                    Swal.fire(
+                        'Creado!',
+                        `El usuario ${name} ${lastName}, legajo #:${legajoId}, ha sido registrado exitosamente.`,
+                        'success'
+                    )
+                }, 1000)
+            } else {
+                Swal.fire(
+                    'No registrado!',
+                    `El usuario ${name} ${lastName}, no ha sido registrado`,
+                    'info'
+                  )
+                return false
+            }
+          })
+    }
 }
 
 function messageWarningEmptyFields(
@@ -472,7 +540,13 @@ btnAddNewUser.addEventListener('click', (event) => {
     const legajoId = document.getElementById('userLegajoId').value
 
     if (name && lastName && username && legajoId && email && password && confirmPassword) {
-        messageNewUser(name, lastName, username, legajoId)
+        messageNewUser(
+            name, 
+            lastName, 
+            username, 
+            legajoId, 
+            email
+        )
     } else {
         messageWarningEmptyFields(
             name,
@@ -488,25 +562,28 @@ btnAddNewUser.addEventListener('click', (event) => {
 
 const btnResetFormNewUser = document.getElementById('btnResetFormNewUser')
 
-btnResetFormNewUser.addEventListener('click', () => {
-    document.getElementById('messagePass').innerHTML = ""
-    document.getElementById('messageConfirmPass').innerHTML = ""
-    btnAddNewUser.disabled = true
-    btnAddNewUser.style.opacity = (0.4)
-    document.getElementById('confirmPassword').disabled = true
-    removeImageAvatar()
-})
+if (btnResetFormNewUser) {
+    btnResetFormNewUser.addEventListener('click', () => {
+        document.getElementById('messagePass').innerHTML = ""
+        document.getElementById('messageConfirmPass').innerHTML = ""
+        btnAddNewUser.disabled = true
+        btnAddNewUser.style.opacity = (0.4)
+        document.getElementById('confirmPassword').disabled = true
+        alertAvatarUser.style.display = 'none'
+        alertSizeAvatarUser.style.display = 'none'
+        alertRefresh()
+    })
+}
 
 var inputsDeTexto = document.querySelectorAll('input[type="text"]')
-
     // Agregar un listener de evento a cada input
     inputsDeTexto.forEach(function(input) {
         input.addEventListener('keydown', function(event) {
             // Obtener el código de la tecla presionada
             let key = event.key;
 
-            // Lista de caracteres especiales prohibidos
-            let forbiddenChars = /[#"$%&?¡¿^/()=!'~`\\*{}\[\]<>@]/;
+            // Solo numeros
+            let forbiddenChars = /["$%?¡¿^/()=!'~`\\*{}\[\]<>@]/;
 
             // Verificar si la tecla presionada es un carácter especial
             if (forbiddenChars.test(key)) {
@@ -523,9 +600,33 @@ var inputsDeTexto = document.querySelectorAll('input[type="text"]')
         })
     })
 
+var inpuntDeNumeros = document.querySelectorAll('input[type="number"]')
+
+    inpuntDeNumeros.forEach(function(input) {
+        input.addEventListener('input', function(event) {
+            // Obtener el valor actual del input
+            let value = input.value;
+
+            // Obtener el código de la tecla presionada
+            let key = event.key;
+
+            // Expresión regular para números enteros de hasta cuatro cifras (0 a 9999)
+                const regexp = /^[0-9]{1,4}$/;
+
+            // Verificar si el valor cumple con la expresión regular
+            if (!regexp.test(value)) {
+                // Remover el último carácter si no cumple con la expresión regular
+                input.value = value.slice(0, -1);
+                input.classList.add("border", "border-danger", "border-2");
+            } else {
+                input.classList.remove("border", "border-danger", "border-2");
+            }
+        })
+    })
+
 function disabledBtnAceptar () {
     let btnAceptarFrom = document.getElementById('btnAddNewUser');
-    const allInputs = document.querySelectorAll('input[type="text"],input[type="number"],select,textarea')
+    const allInputs = document.querySelectorAll('input[type="text"],input[type="number"],select,textarea, input[type="check"]' )
     
     allInputs.forEach(function(input) {
         if (input.value) {

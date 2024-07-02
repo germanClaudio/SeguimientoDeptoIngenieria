@@ -7,6 +7,9 @@ const containerClient = ContainerClients.getDao()
 const ContainerProjects = require("../daos/proyectos/ProyectosDaoFactory.js")
 const containerProject = ContainerProjects.getDao()
 
+// const ContainerProgramms = require('../daos/programacion/ProgramasDaoFactory.js')
+// const containerProgramm = ContainerProgramms.getDaoProgramms()
+
 const ContainerUsers = require("../daos/usuarios/UsuariosDaoFactory.js")
 const containerUser = ContainerUsers.getDaoUsers()
 
@@ -41,9 +44,18 @@ const initSocket = (io) => {
             io.sockets.emit('searchClientsAll', await containerClient.getClientBySearching(query))
         })
 
+        socket.on('searchClienteNew', async (query) => {
+            io.sockets.emit('searchClientsNew', await containerClient.getClientBySearching(query))
+        })
+
         // --------------------------  Projects --------------------------------
         socket.emit('projectsAll',
             await containerProject.getAllProjects(),
+            await containerUser.getAllUsers()            
+        )
+
+        socket.emit('projectsAllWon',
+            // await containerProgramm.getAllProjectsWon(),
             await containerUser.getAllUsers()            
         )
         
@@ -53,7 +65,14 @@ const initSocket = (io) => {
             io.sockets.emit('usersAll', await containerUser.getAllUsers())
         })
         
-        
+        socket.on('searchUsuarioAll', async (query) => {
+            io.sockets.emit('searchUsersAll', await containerUser.getUsersBySearching(query))
+        })
+
+        // -----------------------------  Messages ---------------------------------
+            // const normalizarMensajes = (mensajesConId) =>
+            // normalize(mensajesConId, schemaMensajes)
+
         async function listarMensajesNormalizados() {
             const mensajes = await containerMsg.getAllMessages()
             // const normalizados = normalizarMensajes({ mensajes }); //id: "mensajes",

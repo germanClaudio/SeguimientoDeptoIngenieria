@@ -26,6 +26,11 @@ class ProjectService {
         return this.proyectos.selectProjectsByMainProjectId(idProject)
     }
 
+     // returns a project from a Name Project
+     async getExistingProject(project) {
+        return this.proyectos.getExistingProject(project)
+    }
+
     // returns all OCI from projects
     async getAllOciProjects() {
         return this.proyectos.getAllOciProjects()

@@ -45,16 +45,21 @@ class UserService {
         return await this.usuarios.getUserById(id)
     }
 
+     // return one user by LegajoId
+     async getUserByLegajoId(legajoId) {
+        return await this.usuarios.getUserByLegajoId(legajoId)
+    }
+
     // return one user by username & password
     async getUserByUsernameAndPassword(username, password) {
         return await this.usuarios.getUserByUsernameAndPassword(username, password)
     }
-    
-    // add new user
-    async registerNewUser(user) {
-        return await this.usuarios.registerNewUser(user)
-    }
 
+    // return one user by username || email || legajoId
+    async getExistingUser(user) {
+        return await this.usuarios.getExistingUser(user)
+    }
+    
     // Reset user Password and send email to user
     async resetUserPassword(user) {
         return await this.usuarios.resetUserPassword(user)
@@ -69,7 +74,6 @@ class UserService {
     async getUserSettings(id) {
         return await this.usuarios.getUserById(id)
     }
-
 
     // Register new user
     async addNewUser(newUser) {
@@ -109,6 +113,11 @@ class UserService {
     // authBloq
     async authNoBloq(id, user) {
         return await this.usuarios.authNoBloq(id, user)
+    }
+
+    // returns all Users from serching
+    async getUsersBySearching(query) {
+        return await this.usuarios.getUsersBySearching(query)
     }
 }
 

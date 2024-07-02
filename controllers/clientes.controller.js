@@ -2,116 +2,16 @@ const ClientsService = require("../services/clients.service.js")
 const UserService = require("../services/users.service.js")
 const ProjectsService = require("../services/projects.service.js")
 
-// @ts-ignore
-//**************** */
-const { readEncodedFile } = require('../options/fileHandler.js');
-//********************** */
+const { uploadToGCS } = require("../utils/uploadFilesToGSC.js")
 
 const multer = require('multer')
 
 let now = require('../utils/formatDate.js')
 let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.png"
 
-const { Storage } = require('@google-cloud/storage');
-const sharp = require('sharp');
+const csrf = require('csrf');
+const csrfTokens = csrf();
 
-
-const storageToGCS = new Storage({
-    projectId: process.env.PROJECT_ID_GCS,
-    keyFilename: process.env.ENCODED_FILE_PATH,
-    // credentials: credentials,
-});
-
-async function uploadToGCS(req, res) {
-    const error = 'Error en controllerError'
-    const flag = {
-        dirNumber: 500
-    }
-
-    if (!req.file) {
-        const errorInfo = {
-            errorNumber: 17,
-            status: false,
-            msg: 'controllerError - No es un archivo.....'
-        }
-        res.render('errorPages', {
-            error,
-            errorInfo,
-            flag
-        })
-    }
-
-    const credentials = await readEncodedFile();
-    const storageToGCS = new Storage({
-        projectId: process.env.PROJECT_ID_GCS,
-        credentials: credentials,
-    });
-
-    let bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS); // Nombre bucket en Google Cloud Storage
-    let folderName = 'upload';
-    let subFolderName = 'LogoClientImages';
-    let newClientOrUpdate = req.body.imageTextLogoClient || req.body.imageTextLogoUpdate
-    
-    let originalname = (newClientOrUpdate).match(/[^\/]+$/)[0]
-
-    const blob = bucket.file(`${folderName}/${subFolderName}/${originalname}`);
-
-    //**************Comprimir imagenes********************/
-    // Detectar el formato de la imagen
-    const image = sharp(req.file.buffer);
-    const metadata = await image.metadata();
-
-    // Procesar la imagen según su formato
-    let processedImage;
-    if (metadata.format === 'jpeg' || metadata.format === 'jpg') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .jpeg({ quality: 80, progressive: true }); // Ajustar la calidad
-    } else if (metadata.format === 'png') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .png({ compressionLevel: 9 }); // Ajustar la compresión
-    } else {
-        // Para otros formatos, solo redimensionar
-        processedImage = image.resize({ width: 1024, withoutEnlargement: true });
-    }
-
-    const data = await processedImage.toBuffer();
-    //**************Fin Comprimir imagenes********************/    
-
-    return new Promise((resolve, reject) => {
-        const blobStream = blob.createWriteStream({
-            resumable: false,
-        });
-
-        blobStream.on('error', (err) => {
-            const errorInfo = {
-                errorNumber: 17,
-                status: false,
-                msg: err
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
-        });
-            
-        blobStream.on('finish', () => {
-            req.file.cloudStorageObject = `${originalname}`
-            req.file.cloudStoragePublicUrl = `https://storage.googleapis.com/${bucket.name}/${folderName}/${subFolderName}/${blob.name}`;
-            resolve();
-        });
-
-        blobStream.end(data);
-    });
-};
-
-Promise.all(uploadToGCS)
-    .then(() => {
-    })
-    .catch((err) => {
-    });
 
 class ClientsController {
     constructor() {
@@ -121,56 +21,41 @@ class ClientsController {
     }
 
     getAllClients = async (req, res) => {
-        const clientes = await this.clients.getAllClients()
 
         let username = res.locals.username
         let userInfo = res.locals.userInfo
-
+        
         const cookie = req.session.cookie
         const time = cookie.expires
         const expires = new Date(time)
-
+        
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+        
         try {
-            const flag = {
-                dirNumber: 404
-            }
-            const errorInfo = {
-                errorNumber: 74,
-                status: false,
-                msg: 'controllerError - No hay clientes cargados'
-            }
+            const clientes = await this.clients.getAllClients()
 
-            if (clientes.error) return res.render('errorPages', {error, errorInfo, flag})
+            if (clientes.error) {
+                const err = new Error('No existen Clientes Cargados')
+                err.dirNumber = 400
+                return next(err)
+            }
             
-            res.render('addNewClients', {
+            return res.render('addNewClients', {
                 clientes,
                 username,
                 userInfo,
-                expires
+                expires,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 18,
-                status: false,
-                msg: 'controllerError - getAllClients'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
     getClientProjectsById = async (req, res) => {
         const { id } = req.params
-        const proyectos = await this.projects.getProjectsByClientId(id)
-
-        const cliente = await this.clients.getClientById(id)
 
         let username = res.locals.username
         let userInfo = res.locals.userInfo
@@ -179,43 +64,36 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const flag = {
-            dirNumber: 404
-        }
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
-            if (!proyectos) return res.render('errorPages', {username, userInfo, expires, flag})
+            const proyectos = await this.projects.getProjectsByClientId(id)
+            const cliente = await this.clients.getClientById(id)
+
+            if (!proyectos) {
+                const err = new Error('No existen Proyectos')
+                err.dirNumber = 400
+                return next(err)
+            }
             
-            res.render('clientProjectsDetails', {
+            return res.render('clientProjectsDetails', {
                 username,
                 userInfo,
                 expires,
                 proyectos,
-                cliente
+                cliente,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 55,
-                status: false,
-                msg: 'controllerError - getClientProjectsById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
     getClientById = async (req, res) => {
         const { id } = req.params
-        const cliente = await this.clients.getClientById(id)
-
-        const proyectos = await this.projects.getProjectsByClientId(id)
-        // console.log('getClientById__proyectos....... ',proyectos)
+        
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
@@ -223,49 +101,36 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const flag = {
-            dirNumber: 404
-        }
+        const csrfToken = csrfTokens.create(req.csrfSecret);
 
         try {
-            if (!cliente) return res.render('errorPages', {username, userInfo, expires, flag})
+            const cliente = await this.clients.getClientById(id)
+            const proyectos = await this.projects.getProjectsByClientId(id)
+            
+            if (!cliente) {
+                const err = new Error('No existe Cliente')
+                err.dirNumber = 400
+                return next(err)
+            }
 
-            res.render('clientProjectsDetails', {
+            return res.render('clientProjectsDetails', {
                 cliente,
                 username,
                 userInfo,
                 expires,
-                proyectos
+                proyectos,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 98,
-                status: false,
-                msg: 'controllerError - getClientById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
-            // res.status(500).json({
-            //     status: false,
-            //     msg: 'controllerError - getClientById',
-            //     error: error
-            // })
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
     selectClientById = async (req, res) => {
         const { id } = req.params
-        const cliente = await this.clients.getClientById(id)
-
-        const proyectos = await this.projects.getProjectsByClientId(id)
-
+        
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
@@ -273,34 +138,30 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const flag = {
-            dirNumber: 404
-        }
+        const csrfToken = csrfTokens.create(req.csrfSecret);
 
         try {
-            if (!cliente) return res.render('errorPages', {username, userInfo, expires, flag})
+            const cliente = await this.clients.getClientById(id)
+            const proyectos = await this.projects.getProjectsByClientId(id)
             
-            res.render('clientDetails', {
+            if (!cliente) {
+                const err = new Error('No existe Cliente')
+                err.dirNumber = 400
+                return next(err)
+            }
+            
+            return res.render('clientDetails', {
                 cliente,
                 username,
                 userInfo,
                 expires,
-                proyectos
+                proyectos,
+                csrfToken
             })
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 141,
-                status: false,
-                msg: 'controllerError - selectClientById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
@@ -321,92 +182,104 @@ class ClientsController {
         }).single('imageLogoClient')
         
         uploadMulter(req, res, async (err) => {
-            if(req.file) {
-                uploadToGCS(req, res)
-            }
-
-            let username = res.locals.username
-            const userInfo = res.locals.userInfo
-            const userId = userInfo.id
-            const userCreator = await this.users.getUserById(userId)
-            
-            const user = [{
-                name: userCreator.name,
-                lastName: userCreator.lastName,
-                username: userCreator.username,
-                email: userCreator.email
-            }]
-
-            const modificator = [{
-                name: "",
-                lastName: "",
-                username: "",
-                email: ""
-            }]
-
-            const cookie = req.session.cookie
-            const time = cookie.expires
-            const expires = new Date(time)
-
-            const newCliente = {
-                creator: user,
-                name: req.body.name,
-                status: req.body.statusClient === 'on' ? Boolean(true) : Boolean(false) || Boolean(true),
-                code: req.body.code,
-                project: 0,
-                logo: req.body.imageTextLogoClient || imageNotFound,
-                timestamp: now,
-                modificator: modificator,
-                modifiedOn: '',
-                visible: true
-            }
-            
             if (err) {
-                const error = new Error('No se agregó ningún archivo')
-                error.httpStatusCode = 400
-                return error
+                err.dirNumber = 400;
+                return next(err);
             }
 
             try {
-                const cliente = await this.clients.addClient(newCliente)
-
-                const flag = {
-                    dirNumber: 404
+                if(req.file) {
+                    await uploadToGCS(req, res, next)
                 }
 
-                if (!cliente) return res.render('errorPages', {username, userInfo, expires, flag})
+                let username = res.locals.username
+                const userInfo = res.locals.userInfo
+                const userId = userInfo.id
+                const userCreator = await this.users.getUserById(userId)
+            
+                const user = [{
+                    name: userCreator.name,
+                    lastName: userCreator.lastName,
+                    username: userCreator.username,
+                    email: userCreator.email
+                }]
 
-                res.render('addNewClients', {
+                const modificator = [{
+                    name: "",
+                    lastName: "",
+                    username: "",
+                    email: ""
+                }]
+
+                const cookie = req.session.cookie
+                const time = cookie.expires
+                const expires = new Date(time)
+
+                const clientNameInput = req.body.name.replace(/[!@#$%^*]/g, "");
+                const codeInput = req.body.code
+
+                const newClientValid = {
+                    creator: user,
+                    name: clientNameInput,
+                    status: req.body.statusClient === 'on' ? Boolean(true) : Boolean(false) || Boolean(true),
+                    code: codeInput,
+                    project: 0,
+                    logo: req.body.imageTextLogoClient || imageNotFound,
+                    timestamp: now,
+                    modificator: modificator,
+                    modifiedOn: '',
+                    visible: true
+                }
+
+                const clientExist = await this.clients.getExistingClient(newClientValid);
+                
+                if (clientExist) {
+                    const err = new Error(`Ya existe un Cliente con estos datos.`);
+                    err.dirNumber = 400;
+                    err.data = newUserValid
+                    return next(err);
+                }
+
+                if (err) {
+                    const error = new Error('No se agregó ningún archivo')
+                    error.httpStatusCode = 400
+                    return error
+                }
+
+                const csrfToken = req.body._csrf;
+                if (!csrfTokens.verify(req.csrfSecret, csrfToken)) {
+                    const err = new Error('Invalid CSRF token');
+                    err.dirNumber = 403;
+                    return next(err);
+                }
+
+                const cliente = await this.clients.addClient(newClientValid)
+
+                if (!cliente) {
+                    const err = new Error('No se pudo guardar el Cliente!');
+                    err.dirNumber = 401;
+                    return next(err);
+                }
+
+                csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('addNewClients', {
                     cliente,
                     username,
                     userInfo,
-                    expires
+                    expires,
+                    csrfToken
                 })
 
             } catch (err) {
-                const flag = {
-                    dirNumber: 500
-                }
-                const error = err
-                const errorInfo = {
-                    errorNumber: 183,
-                    status: false,
-                    msg: 'controllerError - createNewClient'
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
-
+                err.dirNumber = 400;
+                return next(err);
             }
         })
     }
 
-    updateClient = async (req, res) => {
+    updateClient = async (req, res, next) => {
          //------ Storage Client Logo Image in Google Store --------
          const storage = multer.memoryStorage({
-            storage: multer.memoryStorage(),
             fileFilter: (req, file, cb) => {
                 if (file.mimetype.startsWith('image/')) {
                     cb(null, true);
@@ -414,7 +287,7 @@ class ClientsController {
                     cb(new Error('Solo se permiten imágenes'));
                 }
             },
-        }); // Almacenamiento en memoria para cargar archivos temporalmente
+        });
              
         const uploadMulter = multer({
             storage: storage
@@ -422,89 +295,124 @@ class ClientsController {
 
         
         uploadMulter(req, res, async (err) => {
-            if (req.file) {
-                uploadToGCS(req, res)
-            }
-
-            const id = req.params.id
-        
-            let username = res.locals.username
-            const userInfo = res.locals.userInfo
-            const userId = userInfo.id
-            const userCreator = await this.users.getUserById(userId)
-            
-            const userModificator = [{
-                name: userCreator.name,
-                lastName: userCreator.lastName,
-                username: userCreator.username,
-                email: userCreator.email
-            }]
-
-            const cookie = req.session.cookie
-            const time = cookie.expires
-            const expires = new Date(time)
-                        
-            const updatedCliente = {
-                name: req.body.name,
-                status: req.body.statusClient === 'on' ? true : false,
-                code: req.body.code,
-                logo: req.body.imageTextLogoUpdate,
-                modificator: userModificator,
-                modifiedOn: now
-            }
-            
             if (err) {
-                const error = new Error('No se agregó ningún archivo')
-                error.httpStatusCode = 400
-                return error
+                err.dirNumber = 400;
+                return next(err);
             }
 
             try {
-                const cliente = await this.clients.getClientById(id)
+                if (req.file) {
+                    await uploadToGCS(req, res, next)
+                }
+
+                const id = req.params.id
+                const clienteToModify = await this.clients.getClientById(id)
+            
+                let username = res.locals.username
+                const userInfo = res.locals.userInfo
+                const userId = userInfo.id
+                const userCreator = await this.users.getUserById(userId)
                 
-                if (cliente) {
-                    const clientUpdated = this.clients.updateClient(
+                const userModificator = [{
+                    name: userCreator.name,
+                    lastName: userCreator.lastName,
+                    username: userCreator.username,
+                    email: userCreator.email
+                }]
+
+                const cookie = req.session.cookie
+                const time = cookie.expires
+                const expires = new Date(time)
+
+                const csrfToken = req.body._csrf;
+                if (!csrfTokens.verify(req.csrfSecret, csrfToken)) {
+                    const err = new Error ('Invalid CSRF token')
+                    err.dirNumber = 403
+                    return next(err)
+                }
+
+                const nameInput = req.body.name.replace(/[!@#$%^&*]/g, "")             
+                const nameValid = await this.clients.getClientByName(nameInput)
+                const otherClients = await this.clients.getAllClients()
+
+                // Función para eliminar un cliente de la lista si coincide con el cliente a comparar
+                function eliminarCliente(lista, cliente) {
+                    return lista.filter(c => {
+                        // Compara los campos que sean necesarios
+                        return c._id.toString() !== cliente._id.toString()
+                    })
+                }
+                // Eliminar el cliente de la lista
+                let clientesRestantes = eliminarCliente(otherClients, nameValid)
+                
+                const clientesNames = clientesRestantes.map(cliente => cliente.name)
+                
+                if (clientesNames.includes(clienteToModify.name)) {
+                    const err = new Error (`Ya existe un Cliente con este nombre ${nameInput}`)
+                    err.dirNumber = 400
+                    return next(err);
+                }
+                
+                const codeInput = req.body.code.replace(/[!@#$%^&*]/g, "")
+                const clientesCodes = clientesRestantes.map(cliente => cliente.code)
+                
+                if (clientesCodes.includes(clienteToModify.code)) {
+                    const err = new Error (`Ya existe un Cliente con este código ${codeInput}`)
+                    err.dirNumber = 400
+                    return next(err);
+                }
+                
+                const updatedCliente = {
+                    name: req.body.name,
+                    status: req.body.statusClient === 'on' ? true : false,
+                    code: req.body.code,
+                    logo: req.body.imageTextLogoUpdate,
+                    modificator: userModificator,
+                    modifiedOn: now
+                }
+                
+                if (err) {
+                    const err = new Error('No se agregó ningún archivo')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+                
+                if (clienteToModify) {
+                    const clientUpdated = await this.clients.updateClient(
                         id, 
                         updatedCliente, 
                         userModificator
                     )
-                    res.render('addNewClients', {
+                    if(!clientUpdated) {
+                        const err = new Error('No fue posible Actualizar el Cliente!')
+                        err.dirNumber = 400
+                        next(err);
+                    }
+
+                    const csrfToken = csrfTokens.create(req.csrfSecret);
+                    return res.render('addNewClients', {
                         clientUpdated,
                         username,
                         userInfo,
-                        expires
+                        expires,
+                        csrfToken
                     })
                                     
                 } else {
-                    const flag = {
-                        dirNumber: 404
-                    }
-                    return res.render('errorPages', {username, userInfo, expires, flag})
+                    const err = new Error('Error de cliente!')
+                    err.dirNumber = 400
+                    next(err);
                 }  
     
-            } catch (error) {
-                const flag = {
-                    dirNumber: 500
-                }
-                const errorInfo = {
-                    errorNumber: 271,
-                    status: false,
-                    msg: 'controllerError - updateClient'
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
+            } catch (err) {
+                err.dirNumber = 400
+                next(err);
             }
         })       
     }
 
     updateClientProjectsQty = async (req, res) => {
         const id = req.params.id
-        const proyectos = await this.projects.getProjectsByClientId(id)
-        
-        const clientToUpdateProjectQty = await this.clients.getClientById(id)
         
         let username = res.locals.username
         let userInfo = res.locals.userInfo
@@ -520,45 +428,37 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
+            const proyectos = await this.projects.getProjectsByClientId(id)
+            const clientToUpdateProjectQty = await this.clients.getClientById(id)
+
             const cliente = await this.clients.updateClientProjectsQty(id, clientToUpdateProjectQty, modifier)
 
-            const flag = {
-                dirNumber: 404
+            if (!cliente) {
+                const err = new Error('Cantidad de proyectos de Cliente no actualizada!')
+                err.dirNumber = 400
+                return next(err)
             }
-
-            if (!cliente) return res.render('errorPages', {username, userInfo, expires, flag})
-            //res.status(404).json({ Msg: 'Cantidad de proyectos de Cliente no actualizada' })
-            
-            res.render('clientProjectsDetails', {
+                        
+            return res.render('clientProjectsDetails', {
                 cliente,
                 username,
                 userInfo,
                 expires,
-                proyectos
+                proyectos,
+                csrfToken
             })
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 356,
-                status: false,
-                msg: 'controllerError - updateClientProjectsQty'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
     reduceClientProjectQty = async (req, res) => {
         const id = req.params.id
-        const proyectos = await this.projects.getProjectsByClientId(id)
-        
-        const clientToUpdateProjectQty = await this.clients.getClientById(id)
         
         let username = res.locals.username
         let userInfo = res.locals.userInfo
@@ -574,31 +474,31 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
+            const proyectos = await this.projects.getProjectsByClientId(id)
+            const clientToUpdateProjectQty = await this.clients.getClientById(id)
             const cliente = await this.clients.reduceClientProjectQty(id, clientToUpdateProjectQty, modifier)
-            if (!cliente) return res.status(404).json({ Msg: 'Cantidad de proyectos de Cliente no actualizada' })
-                res.render('clientProjectsDetails', {
+            
+            if (!cliente) {
+                const err = new Error('Cantidad de proyectos de Cliente no actualizada!')
+                err.dirNumber = 400
+                return next(err)
+            }
+                
+            return res.render('clientProjectsDetails', {
                     cliente,
                     username,
                     userInfo,
                     expires,
-                    proyectos
+                    proyectos,
+                    csrfToken
                 })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 473,
-                status: false,
-                msg: 'controllerError - reduceClientProjectQty'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
@@ -619,36 +519,28 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
             const cliente = await this.clients.deleteClientById(clientId, modificator)
-            
-            const flag = {
-                dirNumber: 404
-            }
 
-            if (!cliente) return res.render('errorPages', {username, userInfo, expires, flag})
-            // res.status(404).json({ Msg: 'Cliente no eliminado' })
+            if (!cliente) {
+                const err = new Error('No se pudo eliminar el Cliente!')
+                err.dirNumber = 400
+                return next(err)
+            }
             
-            res.render('addNewClients', {
+            return res.render('addNewClients', {
                 cliente,
                 username,
                 userInfo,
-                expires
+                expires,
+                csrfToken
             })
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 433,
-                status: false,
-                msg: 'controllerError - deleteClientById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 
@@ -660,29 +552,22 @@ class ClientsController {
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
             const clientsDeleted = await this.clients.deleteAllClients()
-            res.render('addNewClients', {
+
+            return res.render('addNewClients', {
                 clientsDeleted,
                 username,
                 userInfo,
-                expires
+                expires,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 517,
-                status: false,
-                msg: 'controllerError - deleteAllClients'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 400
+            return next(err)
         }
     }
 

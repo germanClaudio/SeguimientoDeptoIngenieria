@@ -2,227 +2,15 @@ const ProyectosService = require("../services/projects.service.js")
 const ClientesService = require("../services/clients.service.js")
 const UserService = require("../services/users.service.js")
 
-// @ts-ignore
-//**************** */
-const { readEncodedFile } = require('../options/fileHandler.js');
-//********************** */
+const { uploadToGCS, uploadToGCSingleFile } = require("../utils/uploadFilesToGSC.js")
 
 const multer = require('multer')
 
+const csrf = require('csrf');
+const csrfTokens = csrf();
+
 let now = require('../utils/formatDate.js')
 let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.png"
-
-const { Storage } = require('@google-cloud/storage');
-const sharp = require('sharp');
-
-
-function uploadToGCS(req, res) { //async
-    const error = 'Error en carga de Imagen o Imagenes a Google Cloud Storage'
-    const flag = {
-        dirNumber: 500
-    }
-
-    if (!req.files || req.files.length === 0) {
-        const errorInfo = {
-            errorNumber: 18.1,
-            status: false,
-            msg: 'controllerError - Uno o varios archivos no son validos!'
-        }
-        
-        res.render('errorPages', {
-            error,
-            errorInfo,
-            flag
-        })
-    }
-
-    const credentials = readEncodedFile();
-    const storageToGCS = new Storage({
-        projectId: process.env.PROJECT_ID_GCS,
-        credentials: credentials,
-    });
-    
-    let folderName = 'upload';
-    let subFolderName = 'projectImages';
-
-    // Paso 1: Transformar el objeto recibido a un objeto normal (si es necesario)
-    const data = Object.assign({}, req.body);
-    //console.log('43-data===> ', data)
-
-    // Paso 2: Crear el array con los valores de imageOciFileNameModalX
-    var imagesFileNames = Object.keys(data)
-    .filter(key => key.startsWith('image')) //imageOciFileNameModal
-    .map(key => data[key])
-    .filter(value => value); // Filtrar valores no vacíos
-
-    let newImageFileNames = imagesFileNames.map(element => element.match(/[^\/]+$/)[0])
-    // console.log('63-newImageFileNames: ', newImageFileNames);
-
-    //**********req.files******** */
-    for (let x=0; req.files.length>x; x++) {
-        req.files[x].originalname = newImageFileNames[x]
-    }
-    // console.log('69-req.files---> originalname ---->',req.files);
-
-    if (req.files && newImageFileNames) {
-        const uploadPromises = req.files.map(async (file) => {
-            const bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS)
-            const blob = bucket.file(`${folderName}/${subFolderName}/${file.originalname}`); // Ruta completa del objeto dentro del bucket
-        
-        //***********Comprimir Imgenes******************/
-        // Detectar el formato de la imagen
-        const image = sharp(file.buffer);
-        const metadata = await image.metadata();
-
-        // Procesar la imagen según su formato
-        let processedImage;
-        if (metadata.format === 'jpeg' || metadata.format === 'jpg') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .jpeg({ quality: 80, progressive: true }); // Ajustar la calidad
-        } else if (metadata.format === 'png') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .png({ compressionLevel: 9 }); // Ajustar la compresión
-        } else {
-        // Para otros formatos, solo redimensionar
-        processedImage = image.resize({ width: 1024, withoutEnlargement: true });
-        }
-
-        const data = await processedImage.toBuffer();
-        //***********Fin Comprimir Imgenes******************/
-
-            const blobStream = blob.createWriteStream({
-              resumable: false,
-            });
-        
-            return new Promise((resolve, reject) => {
-              blobStream.on('error', (err) => {
-                const errorInfo = {
-                    errorNumber: 14.2,
-                    status: false,
-                    msg: err
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
-                reject(err);
-              });
-        
-              blobStream.on('finish', () => {
-                file.cloudStorageObject = `${file.originalname}`
-                file.cloudStoragePublicUrl = `https://storage.googleapis.com/${bucket.name}/${folderName}/${subFolderName}/${blob.name}`;
-                resolve();
-              });
-        
-              blobStream.end(data);
-            });
-        });
-        
-        Promise.all(uploadPromises)
-        .then(() => {
-            //   next();
-        })
-        .catch((err) => {
-            //   next(err);
-            const errorInfo = {
-                errorNumber: 18.1,
-                status: false,
-                msg: 'controllerError: ' + err + ' - Uno o varios archivos no son validos!'
-            }
-            
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
-        });
-    }
-};
-
-async function uploadToGCSingleFile(req, res) {
-    const error = 'Error en carga de Imagen o Imagenes a Google Cloud Storage'
-    const flag = {
-        dirNumber: 500
-    }
-
-    if (!req.file) {
-        const errorInfo = {
-            errorNumber: 139,
-            status: false,
-            msg: 'controllerError - No es un archivo valido.'
-        }
-        res.render('errorPages', {
-            error,
-            errorInfo,
-            flag
-        })
-    }
-
-    const credentials = await readEncodedFile();
-    const storageToGCS = new Storage({
-        projectId: process.env.PROJECT_ID_GCS,
-        credentials: credentials,
-    });
-
-    // console.log('157-req.body: ', req.body)
-    let bucket = storageToGCS.bucket(process.env.STORE_BUCKET_GCS); // Nombre bucket en Google Cloud Storage
-    let folderName = 'upload';
-    let subFolderName = 'projectImages';
-    let updateProjectOrOci = req.body.imageProjectFileName || req.body.imageOciFileName
-    
-    let originalname = (updateProjectOrOci).match(/[^\/]+$/)[0]
-    //console.log('164-originalname: ', originalname)
-    const blob = bucket.file(`${folderName}/${subFolderName}/${originalname}`);
-
-//**************Comprimir imagenes********************/
-    // Detectar el formato de la imagen
-    const image = sharp(req.file.buffer);
-    const metadata = await image.metadata();
-
-    // Procesar la imagen según su formato
-    let processedImage;
-    if (metadata.format === 'jpeg' || metadata.format === 'jpg') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .jpeg({ quality: 80, progressive: true }); // Ajustar la calidad
-    } else if (metadata.format === 'png') {
-        processedImage = image
-            .resize({ width: 1024, withoutEnlargement: true }) // Redimensionar si es necesario
-            .png({ compressionLevel: 9 }); // Ajustar la compresión
-    } else {
-        // Para otros formatos, solo redimensionar
-        processedImage = image.resize({ width: 1024, withoutEnlargement: true });
-    }
-
-    const data = await processedImage.toBuffer();
-//**************Fin Comprimir imagenes********************/    
-
-    const blobStream = blob.createWriteStream({
-        resumable: false,
-    });
-
-    blobStream.on('error', (err) => {
-        const errorInfo = {
-            errorNumber: 14,
-            status: false,
-            msg: error
-        }
-        res.render('errorPages', {
-            error,
-            errorInfo,
-            flag
-        })
-    });
-            
-    blobStream.on('finish', () => {
-        req.file.cloudStorageObject = `${originalname}`
-        req.file.cloudStoragePublicUrl = `https://storage.googleapis.com/${bucket.name}/${folderName}/${subFolderName}/${blob.name}`;
-    });
-    blobStream.end(data);
-};
 
 
 class ProjectsController {
@@ -232,9 +20,7 @@ class ProjectsController {
         this.users = new UserService()
     }
 
-    getAllProjects = async (req, res) => {
-        const proyectos = await this.projects.getAllProjects()
-
+    getAllProjects = async (req, res, next) => {
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
@@ -242,11 +28,17 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        let cliente = await this.clients.getClientById()
-
         try {
-            if (proyectos.error) return res.status(400).json({ msg: 'No hay proyectos cargados' })
-            res.render('projectsList', {
+            let cliente = await this.clients.getClientById()
+            const proyectos = await this.projects.getAllProjects()
+
+            if (proyectos.error) {
+                const err = new Error('No existen Proyectos Cargados')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            return res.render('projectsList', {
                 proyectos,
                 cliente,
                 username,
@@ -254,69 +46,50 @@ class ProjectsController {
                 expires
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 19,
-                status: false,
-                msg: 'controllerError - getAllProjects'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    getProjectsByClientId = async (req, res) => {
+    getProjectsByClientId = async (req, res, next) => {
         const { id } = req.params
-        const cliente = await this.clients.getClientById(id)
-        //console.log('proyectosControler - Cliente -getProjectsByClientId ', id)
-        const proyectos = await this.projects.getProjectsByClientId(id)
-        //console.log('proyectosControler-getProjectsByClientId ', proyectos)
-
         let username = res.locals.username
         let userInfo = res.locals.userInfo
-
+        
         const cookie = req.session.cookie
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+        
         try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
+            const cliente = await this.clients.getClientById(id)
+            const proyectos = await this.projects.getProjectsByClientId(id)
+            
+            if (proyectos.error) {
+                const err = new Error('No existen Proyectos Cargados')
+                err.dirNumber = 400
+                return next(err)
+            }
+            
+            return res.render('clientProjectsDetails', {
                 proyectos,
                 username,
                 userInfo,
                 expires,
-                cliente
+                cliente,
+                csrfToken
             })
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 59,
-                status: false,
-                msg: 'controllerError - getProductById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    selectProjectByClientId = async (req, res) => {
+    selectProjectByClientId = async (req, res, next) => {
         const { id } = req.params
-        const cliente = await this.clients.getClientById(id)
-
-        const proyectosCargados = await this.projects.getProjectsByClientId(id)
-
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
@@ -324,45 +97,43 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
+        const csrfToken = csrfTokens.create(req.csrfSecret);
+
         try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
+            const cliente = await this.clients.getClientById(id)
+            const proyectosCargados = await this.projects.getProjectsByClientId(id)
+            
+            if (!proyectosCargados || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            return res.render('clientProjectsDetails', {
                 proyectosCargados,
                 username,
                 userInfo,
                 expires,
-                cliente
+                cliente,
+                csrfToken
             })
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 100,
-                status: false,
-                msg: 'controllerError - selectProjectByClientId'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    selectProjectById = async (req, res) => {
+    selectProjectById = async (req, res, next) => {
         const { id } = req.params
-
-        const proyecto = await this.projects.selectProjectByProjectId(id)
-        const idCliente = proyecto[0].client[0]._id
-        const cliente = await this.clients.getClientByProjectId(idCliente)
-
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
         const cookie = req.session.cookie
         const time = cookie.expires
         const expires = new Date(time)
+
+        const csrfToken = csrfTokens.create(req.csrfSecret);
 
         const data = { // Inicializar variables en servidor
             k: 0, 
@@ -371,34 +142,33 @@ class ProjectsController {
         }
 
         try {
-            if (!proyecto) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('projectSelectedDetail', {
+            const proyecto = await this.projects.selectProjectByProjectId(id)
+            const idCliente = proyecto[0].client[0]._id
+            const cliente = await this.clients.getClientByProjectId(idCliente)
+
+            if (!proyecto || !cliente) {
+                const err = new Error('Proyecto o Cliente no encontrados')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            return res.render('projectSelectedDetail', {
                 proyecto,
                 username,
                 userInfo,
                 expires,
                 cliente,
-                data
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 140,
-                status: false,
-                msg: 'controllerError - selectProjectById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    createNewProject = async (req, res) => {    
+    createNewProject = async (req, res, next) => {    
         //------ Storage Client Logo Image in Google Store --------
         const storage = multer.memoryStorage({
             fileFilter: (req, file, cb) => {
@@ -414,112 +184,43 @@ class ProjectsController {
             storage: storage
         }).any()
 
-        
-        uploadImageOciMulter(req, res, async (err) => {
-            console.log('408-req.files: ', req.files)
-
-            if(req.files && req.files.length != 0){
-                uploadToGCS(req, res) 
-            }
-
-            const clientId = req.body.clientIdHidden
-            const clienteSeleccionado = await this.clients.selectClientById(clientId)
-
-            const ociQuantity = parseInt(req.body.ociQuantity)
-            
-            const userId = req.body.idHidden
-            const userCreator = await this.users.getUserById(userId)
-            
-            const user = [{
-                name: userCreator.name,
-                lastName: userCreator.lastName,
-                username: userCreator.username,
-                email: userCreator.email
-            }]
-
-            const modificator = [{
-                name: "",
-                lastName: "",
-                username: "",
-                email: ""
-            }]
-
-            let arrayOciNumber=[],
-            arrayOciDescription=[],
-            arrayOciAlias=[],
-            arrayOciStatus=[],
-            arrayOciImages=[]
-
-            for (const key in req.body) {
-                if (key.startsWith('ociNumber')) {
-                    arrayOciNumber.push(req.body[key])
-                }
-                else if (key.startsWith('ociDescription')) {
-                    arrayOciDescription.push(req.body[key])
-                }
-                else if (key.startsWith('ociAlias')) {
-                    arrayOciAlias.push(req.body[key])
-                }
-                else if (key.startsWith('ociStatus')) {
-                    arrayOciStatus.push(req.body[key])
-                }
-                else if (key.startsWith('imageOciFileName')) {
-                    arrayOciImages.push(req.body[key])
-                }
-            }
-
-            let arrayOciProjects = []
-            for(let i=0; i<ociQuantity; i++) {
-                var ociProject = {
-                        ociNumber: arrayOciNumber[i],
-                        ociDescription: arrayOciDescription[i],
-                        ociAlias: arrayOciAlias[i],
-                        ociStatus: arrayOciStatus[i] == 'on' ? true : false,
-                        creator: user,
-                        timestamp: now,
-                        ociImage: arrayOciImages[i] || imageNotFound,
-                        modificator: modificator,
-                        modifiedOn: "",
-                        visible: true
-                }
-                arrayOciProjects.push(ociProject)
-            }
-            
-            const project = {
-                projectName: req.body.projectName,
-                statusProject: req.body.statusProject == 'on' ? true : false,
-                levelProject: req.body.levelProject,
-                codeProject: req.body.codeProject,
-                projectDescription: req.body.projectDescription,
-                prioProject: req.body.prioProject,
-                imageProject: req.body.imageProject || imageNotFound,
-                visible: true,
-                creator: user,
-                timestamp: now,
-                modificator: modificator,
-                modifiedOn: "",
-                oci: arrayOciProjects
-            }
-
-            const newProject = {
-                creator: user,
-                client: clienteSeleccionado,
-                project: project,
-                timestamp: now,
-                modificator: modificator,
-                modifiedOn: "",
-                visible: true
-            }
-      
+        uploadImageOciMulter(req, res, next, async (err) => {
             if (err) {
-                const error = new Error('No se agregó ningún archivo')
-                error.httpStatusCode = 400
-                return error
+                err.dirNumber = 400;
+                return next(err);
             }
 
-            try {
-                await this.projects.addProjectToClient(newProject)
-                const proyectos = await this.projects.getProjectsByClientId(clientId)
+            try{
+                if(req.files && req.files.length != 0){
+                    await uploadToGCS(req, res, next) 
+                }
+
+                const clientId = req.body.clientIdHidden
+                const clienteSeleccionado = await this.clients.selectClientById(clientId)
+                if (!clienteSeleccionado) {
+                    const err = new Error('Cliente no encontrado!');
+                    err.dirNumber = 401;
+                    return next(err);
+                }
+
+                const ociQuantity = parseInt(req.body.ociQuantity)
+                
+                const userId = req.body.idHidden
+                const userCreator = await this.users.getUserById(userId)
+                
+                const user = [{
+                    name: userCreator.name,
+                    lastName: userCreator.lastName,
+                    username: userCreator.username,
+                    email: userCreator.email
+                }]
+
+                const modificator = [{
+                    name: "",
+                    lastName: "",
+                    username: "",
+                    email: ""
+                }]
 
                 let username = res.locals.username
                 let userInfo = res.locals.userInfo
@@ -528,35 +229,143 @@ class ProjectsController {
                 const time = cookie.expires
                 const expires = new Date(time)
 
-                const cliente = await this.clients.updateClientProjectsQty(
-                    clientId, 
-                    clienteSeleccionado, 
-                    user
-                )
+                let arrayOciNumber=[],
+                arrayOciDescription=[],
+                arrayOciAlias=[],
+                arrayOciStatus=[],
+                arrayOciImages=[]
 
-                if (!proyectos) return res.status(404).json({ Msg: 'Proyecto no guardado' })
-                res.render('clientProjectsDetails', {
-                    username,
-                    userInfo,
-                    expires,
-                    cliente,
-                    proyectos
-                })
+                for (const key in req.body) {
+                    if (key.startsWith('ociNumber')) {
+                        arrayOciNumber.push(req.body[key])
+                    }
+                    else if (key.startsWith('ociDescription')) {
+                        arrayOciDescription.push(req.body[key])
+                    }
+                    else if (key.startsWith('ociAlias')) {
+                        arrayOciAlias.push(req.body[key])
+                    }
+                    else if (key.startsWith('ociStatus')) {
+                        arrayOciStatus.push(req.body[key])
+                    }
+                    else if (key.startsWith('imageOciFileName')) {
+                        arrayOciImages.push(req.body[key])
+                    }
+                }
 
-            } catch (error) {
-                const flag = {
-                    dirNumber: 500
+                let arrayOciProjects = []
+                if (ociQuantity>0) {
+                    for(let i=0; i<ociQuantity; i++) {
+                        var ociProject = {
+                                ociNumber: parseInt(arrayOciNumber[i]),
+                                ociDescription: arrayOciDescription[i],
+                                ociAlias: arrayOciAlias[i],
+                                ociStatus: arrayOciStatus[i] == 'on' ? true : false,
+                                creator: user,
+                                timestamp: now,
+                                ociImage: arrayOciImages[i] || imageNotFound,
+                                modificator: modificator,
+                                modifiedOn: "",
+                                visible: true
+                        }
+                        arrayOciProjects.push(ociProject)
+                    }
+
+                } else {
+                    const err = new Error('Debe ingresar al menos una OCI');
+                    err.dirNumber = 400;
+                    return next(err);
                 }
-                const errorInfo = {
-                    errorNumber: 188,
-                    status: false,
-                    msg: 'controllerError - createNewProject'
+
+                const csrfToken = req.body._csrf;
+                    if (!csrfTokens.verify(req.csrfSecret, csrfToken)) {
+                        const err = new Error('Invalid CSRF token');
+                        err.dirNumber = 403;
+                        return next(err);
+                    }
+
+                const projectInput = req.body.projectName
+                const projectCodeInput = req.body.codeProject
+                const projectNameExist = await this.users.getExistingProject(projectInput, projectCodeInput);
+                if (projectNameExist) {
+                    const err = new Error(`Ya existe un Proyecto con estos datos.`);
+                    err.dirNumber = 400;
+                    err.data = projectNameExist
+                    return next(err);
                 }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
+
+                const selectFieldLevel = req.body.levelProject;
+
+                if (validateSelectField(selectFieldLevel)) {
+                    
+                    const project = {
+                        projectName: projectInput,
+                        statusProject: req.body.statusProject == 'on' ? true : false,
+                        levelProject: selectFieldLevel,
+                        codeProject: projectCodeInput,
+                        projectDescription: req.body.projectDescription,
+                        prioProject: parseInt(req.body.prioProject),
+                        imageProject: req.body.imageProject || imageNotFound,
+                        visible: true,
+                        creator: user,
+                        timestamp: now,
+                        modificator: modificator,
+                        modifiedOn: "",
+                        oci: arrayOciProjects
+                    }
+    
+                    const newProject = {
+                        creator: user,
+                        client: clienteSeleccionado,
+                        project: project,
+                        timestamp: now,
+                        modificator: modificator,
+                        modifiedOn: "",
+                        visible: true
+                    }
+    
+                    const proyectos = await this.projects.getProjectsByClientId(clientId)
+                    if (!proyectos) {
+                            const err = new Error('Proyecto no encontrado!');
+                            err.dirNumber = 401;
+                            return next(err);
+                        }
+    
+                    await this.projects.addProjectToClient(newProject)
+    
+                    const cliente = await this.clients.updateClientProjectsQty(
+                        clientId, 
+                        clienteSeleccionado, 
+                        user
+                    )
+    
+                    const csrfToken = csrfTokens.create(req.csrfSecret);
+    
+                    return res.render('clientProjectsDetails', {
+                        username,
+                        userInfo,
+                        expires,
+                        cliente,
+                        proyectos,
+                        csrfToken
+                    })
+
+                } else {
+                    const err = new Error('Datos inválidos');
+                    err.dirNumber = 400;
+                    return next(err);
+                }
+            
+                function validateSelectField(value) {
+                    const validOptions = [
+                        'ganado', 'aRiesgo', 'paraCotizar'
+                    ];
+                    return validOptions.includes(value);
+                }
+
+            } catch (err) {
+                err.dirNumber = 500
+                return next(err)
             }
         })
     }

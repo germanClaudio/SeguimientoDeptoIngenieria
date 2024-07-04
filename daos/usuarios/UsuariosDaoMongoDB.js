@@ -88,19 +88,43 @@ class UsuariosDaoMongoDB extends ContainerMongoDB {
         }
     }
     
-    async getUserByUsername(username) {
-        if(username){
-            try {
-                const user = await Usuarios.findOne( { username: `${username}` })
-                // console.log('user:', user)
+    async getUserByUsername(username) { 
+        if(username) {
+            const userInput = username; // Nombre de usuario o número de legajo ingresado por el usuario
+            var legajoIdNumber = null;
+
+                // Intentar convertir el input a un número
+                if (!isNaN(userInput)) {
+                    legajoIdNumber = parseInt(userInput, 10);
+                }
+                // console.log('legajoIdNumber:', legajoIdNumber)
+
+                // Función para verificar si una cadena tiene formato de correo electrónico
+                function esCorreoElectronico(cadena) {
+                    // Expresión regular para validar correos electrónicos
+                    var patronCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    return patronCorreo.test(cadena);
+                }
+
+                let query = {};
+                if (legajoIdNumber !== null) {
+                    query = { legajoId: legajoIdNumber };
+                } else if (esCorreoElectronico(userInput)) {
+                    query = { email: { $regex: userInput, $options: 'i' } };
+                } else {
+                    query = { username: { $regex: userInput, $options: 'i' } };
+                }
+                    
+            try {        
+                const user = await Usuarios.findOne(query);
                 
-                 if ( user === undefined || user === null) {
-                    return false
-                 } else {
-                    return user
-                 }
+                if ( user === undefined || user === null) {
+                   return false
+                } else {
+                   return user
+                }
             } catch (error) {
-                console.error('Aca esta el error 4/6/2024: ', error)
+                console.error('Aca esta el error vieja: ', error)
             }
         } else {
             return console.error('Aca esta el error(username invalid)')

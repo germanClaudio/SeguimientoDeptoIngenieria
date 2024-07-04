@@ -12,6 +12,10 @@ const csrfTokens = csrf();
 let now = require('../utils/formatDate.js')
 let imageNotFound = "../../../src/images/upload/LogoClientImages/noImageFound.png"
 
+const data = require('../utils/variablesInicializator.js')
+const cookie = require('../utils/cookie.js')
+const {catchError400, catchError500} = require('../utils/catchErrors.js')
+
 
 class ProjectsController {
     constructor() {
@@ -24,31 +28,36 @@ class ProjectsController {
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
-        const cookie = req.session.cookie
-        const time = cookie.expires
-        const expires = new Date(time)
+        const expires = cookie(req)
+        console.log('expires: ', expires)
+        console.log('catchError400: ', catchError400)
+        console.log('catchError500: ', catchError500)
 
         try {
-            let cliente = await this.clients.getClientById()
+            const cliente = await this.clients.getClientById()
             const proyectos = await this.projects.getAllProjects()
-
-            if (proyectos.error) {
-                const err = new Error('No existen Proyectos Cargados')
-                err.dirNumber = 400
-                return next(err)
+            if (!proyectos || !cliente) {
+                catchError400(req, res, next)
+                // const err = new Error('No existen Proyectos Cargados')
+                // err.dirNumber = 400
+                // return next(err)
             }
 
+            const csrfToken = csrfTokens.create(req.csrfSecret);
             return res.render('projectsList', {
                 proyectos,
                 cliente,
                 username,
                 userInfo,
-                expires
+                expires,
+                data,
+                csrfToken
             })
 
         } catch (err) {
-            err.dirNumber = 500
-            return next(err)
+            catchError500(err, req, res, next)
+            // err.dirNumber = 500
+            // return next(err)
         }
     }
 
@@ -61,24 +70,24 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const csrfToken = csrfTokens.create(req.csrfSecret);
-        
         try {
             const cliente = await this.clients.getClientById(id)
             const proyectos = await this.projects.getProjectsByClientId(id)
             
-            if (proyectos.error) {
+            if (!proyectos || !cliente) {
                 const err = new Error('No existen Proyectos Cargados')
                 err.dirNumber = 400
                 return next(err)
             }
             
+            const csrfToken = csrfTokens.create(req.csrfSecret);
             return res.render('clientProjectsDetails', {
                 proyectos,
                 username,
                 userInfo,
                 expires,
                 cliente,
+                data,
                 csrfToken
             })
 
@@ -97,24 +106,23 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const csrfToken = csrfTokens.create(req.csrfSecret);
-
         try {
             const cliente = await this.clients.getClientById(id)
             const proyectosCargados = await this.projects.getProjectsByClientId(id)
-            
             if (!proyectosCargados || !cliente) {
                 const err = new Error('Proyecto no encontrado')
                 err.dirNumber = 400
                 return next(err)
             }
 
+            const csrfToken = csrfTokens.create(req.csrfSecret);
             return res.render('clientProjectsDetails', {
                 proyectosCargados,
                 username,
                 userInfo,
                 expires,
                 cliente,
+                data,
                 csrfToken
             })
 
@@ -133,14 +141,6 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        const csrfToken = csrfTokens.create(req.csrfSecret);
-
-        const data = { // Inicializar variables en servidor
-            k: 0, 
-            m: 0,
-            j: 0
-        }
-
         try {
             const proyecto = await this.projects.selectProjectByProjectId(id)
             const idCliente = proyecto[0].client[0]._id
@@ -152,6 +152,7 @@ class ProjectsController {
                 return next(err)
             }
 
+            const csrfToken = csrfTokens.create(req.csrfSecret);
             return res.render('projectSelectedDetail', {
                 proyecto,
                 username,
@@ -347,6 +348,7 @@ class ProjectsController {
                         expires,
                         cliente,
                         proyectos,
+                        data,
                         csrfToken
                     })
 
@@ -370,9 +372,8 @@ class ProjectsController {
         })
     }
 
-    getAllOciProjects = async (req, res) => {
-        const proyectos = await this.projects.getAllOciProjects()
-
+    getAllOciProjects = async (req, res, next) => {
+        
         let username = res.locals.username
         let userInfo = res.locals.userInfo
 
@@ -380,45 +381,34 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
 
-        // let cliente = await this.clients.getClientById()
-        let clientes = await this.clients.getAllClients()
-
-        const data = { // Inicializar variables en servidor
-            k: 0, 
-            m: 0,
-            j: 0,
-            c: 0
-        }
-
         try {
-            if (proyectos.error) return res.status(400).json({ msg: 'No hay proyectos cargados' })
-            res.render('nestableOciList', {
+            const proyectos = await this.projects.getAllOciProjects()
+            const clientes = await this.clients.getAllClients()
+
+            if (!proyectos || !clientes) {
+                const err = new Error('No hay proyectos cargados')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+            return res.render('nestableOciList', {
                 username,
                 userInfo,
                 proyectos,
                 clientes,
                 expires,
-                data
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 340,
-                status: false,
-                msg: 'controllerError - getAllOciProjects'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    addOtToOciProject = async (req, res) => {
+    addOtToOciProject = async (req, res, next) => {
         const { id } = req.params
         const clientId = req.body.clientIdHidden
         const cliente = await this.clients.selectClientById(clientId)
@@ -496,73 +486,71 @@ class ProjectsController {
             otInfoSim2_3: [],
             otInfoSim4: [],
             otInfoSim5: []
-          }]
+        }]
 
-        var arrayOtAddedToOci = []
-        for(let i=0; i<otQuantity; i++) {
-            var otAddedToOci = {
-                otNumber: arrayOtNumber[i],
-                opNumber: arrayOpNumber[i],
-                opDescription: arrayOpDescription[i],
-                otStatus: arrayOtStatus[i] == 'on' ? true : false,
-                otDesign: arrayOtDesign[i],
-                otSimulation: arrayOtSimulation[i],
-                otSupplier: arrayOtSupplier[i],
-                creator: user,
-                timestamp: now,
-                modificator: modificator,
-                modifiedOn: "",
-                otInformation: otInformationEmpty
+        const otDetallesEmpty = []
+        const arrayOtAddedToOci = []
+        if (otQuantity>0) {
+            for(let i=0; i<otQuantity; i++) {
+                var otAddedToOci = {
+                    otNumber: arrayOtNumber[i],
+                    opNumber: arrayOpNumber[i],
+                    opDescription: arrayOpDescription[i],
+                    otStatus: arrayOtStatus[i] == 'on' ? true : false,
+                    otDesign: arrayOtDesign[i],
+                    otSimulation: arrayOtSimulation[i],
+                    otSupplier: arrayOtSupplier[i],
+                    creator: user,
+                    timestamp: now,
+                    modificator: modificator,
+                    modifiedOn: "",
+                    otInformation: otInformationEmpty,
+                    otDetalles: otDetallesEmpty
+                }
+                arrayOtAddedToOci.push(otAddedToOci)
             }
-            arrayOtAddedToOci.push(otAddedToOci)
+
+        } else {
+            const err = new Error('Debe ingresar al menos una OT');
+            err.dirNumber = 400;
+            return next(err);
         }
 
-        await this.projects.addOtToOciProject(
-            projectId,
-            numberOci,
-            ociNumberK,
-            arrayOtAddedToOci
-        )
-
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            user
-        )
-
-        const data = { // Inicializar variables en servidor
-            k: 0, 
-            m: 0,
-            j: 0
-        }
-
-        const proyecto = await this.projects.selectProjectsByMainProjectId(projectId)
-            // console.log('proyectoController ',proyecto)
         try {
-            if (!proyecto) return res.status(404).json({ msg: 'OCI no encontrada' })
-            res.render('projectSelectedDetail', {
+            await this.projects.addOtToOciProject(
+                projectId,
+                numberOci,
+                ociNumberK,
+                arrayOtAddedToOci
+            )
+
+            await this.clients.updateClient(
+                clientId, 
+                cliente, 
+                user
+            )
+
+            const proyecto = await this.projects.selectProjectsByMainProjectId(projectId)
+            if (!proyecto || !cliente) {
+                const err = new Error('OCI no encontrada!');
+                err.dirNumber = 401;
+                return next(err);
+            }
+
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+            return res.render('projectSelectedDetail', {
                 proyecto,
                 username,
                 userInfo,
                 expires,
                 cliente,
-                data
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 389,
-                status: false,
-                msg: 'controllerError - Adding OT to OCI Proyect'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
@@ -2253,14 +2241,12 @@ class ProjectsController {
     }
 
 
-    updateStatusProject = async (req, res) => {
+    updateStatusProject = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
         const clientId = proyecto[0].client[0]._id
         const cliente = await this.clients.selectClientById(clientId)
-        
-        const statusProjectHidden = req.body.statusProjectHidden
 
         let username = res.locals.username
         const userInfo = res.locals.userInfo
@@ -2277,53 +2263,67 @@ class ProjectsController {
         const cookie = req.session.cookie
         const time = cookie.expires
         const expires = new Date(time)
-        
-        await this.projects.updateStatusProject(
-            id, 
-            proyecto, 
-            statusProjectHidden,
-            userModificator
-        )
 
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            userModificator
-        )
-
-        const proyectos = await this.projects.getProjectsByClientId(clientId)
-        
         try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
-                username,
-                userInfo,
-                expires,
-                cliente,
-                proyectos
-            })
+            const statusProjectHidden = req.body.statusProjectHidden
+            if (validateSelectField(statusProjectHidden)) {
+                await this.projects.updateStatusProject(
+                    id, 
+                    proyecto, 
+                    statusProjectHidden,
+                    userModificator
+                )
 
-        } catch (error) {
-            const errorInfo = {
-                errorNumber: 2280,
-                status: false,
-                msg: 'controllerError - updateStatusProject'
+                await this.clients.updateClient(
+                    clientId, 
+                    cliente, 
+                    userModificator
+                )
+
+                const proyectos = await this.projects.getProjectsByClientId(clientId)
+            
+                if (!proyecto || !proyectos) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('clientProjectsDetails', {
+                    username,
+                    userInfo,
+                    expires,
+                    cliente,
+                    proyectos,
+                    data,
+                    csrfToken
+                })
+
+            } else {
+                const err = new Error('Datos inválidos');
+                err.dirNumber = 400;
+                return next(err);
             }
-            res.render('errorPages', {
-                error,
-                errorInfo
-            })
+
+            function validateSelectField(value) {
+                const validOptions = [
+                    'true', 'false'
+                ];
+                return validOptions.includes(value);
+            }
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    updateLevelProject = async (req, res) => {
+    updateLevelProject = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
         const clientId = proyecto[0].client[0]._id
         const cliente = await this.clients.selectClientById(clientId)
-        
-        const levelProject = req.body.levelProject
         
         let username = res.locals.username
         const userInfo = res.locals.userInfo
@@ -2341,52 +2341,66 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
         
-        await this.projects.updateLevelProject(
-            id, 
-            proyecto, 
-            levelProject,
-            userModificator
-        )        
-
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            userModificator
-        )
-
-        const proyectos = await this.projects.getProjectsByClientId(clientId)
-        
         try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
-                username,
-                userInfo,
-                expires,
-                cliente,
-                proyectos
-            })
+            const levelProject = req.body.levelProject
+            if (validateSelectField(levelProject)) {
 
-        } catch (error) {
-            const errorInfo = {
-                errorNumber: 2343,
-                status: false,
-                msg: 'controllerError - updateLevelProject'
+                await this.projects.updateLevelProject(
+                    id, 
+                    proyecto, 
+                    levelProject,
+                    userModificator
+                )        
+
+                await this.clients.updateClient(
+                    clientId, 
+                    cliente, 
+                    userModificator
+                )
+
+                const proyectos = await this.projects.getProjectsByClientId(clientId)
+                if (!proyecto || !proyectos || !cliente) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('clientProjectsDetails', {
+                    username,
+                    userInfo,
+                    expires,
+                    cliente,
+                    proyectos,
+                    csrfToken
+                })
+
+            } else {
+                const err = new Error('Datos inválidos');
+                err.dirNumber = 400;
+                return next(err);
             }
-            res.render('errorPages', {
-                error,
-                errorInfo
-            })
+
+            function validateSelectField(value) {
+                const validOptions = [
+                    'ganado', 'aRiesgo', 'paraCotizar'
+                ];
+                return validOptions.includes(value);
+            }
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    updateStatusOci = async (req, res) => {
+    updateStatusOci = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
         const clientId = proyecto[0].client[0]._id
         const cliente = await this.clients.selectClientById(clientId)
         
-        const statusOciHidden = req.body.statusOciHidden
         const ociKNumber = parseInt(req.body.ociKNumberHidden)
         
         let username = res.locals.username
@@ -2405,53 +2419,68 @@ class ProjectsController {
         const time = cookie.expires
         const expires = new Date(time)
         
-        await this.projects.updateStatusOci(
-            id, 
-            proyecto,
-            statusOciHidden,
-            ociKNumber,
-            userModificator
-        )
-
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            userModificator
-        )
-
-        const proyectos = await this.projects.getProjectsByClientId(clientId)
-        
         try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
-                username,
-                userInfo,
-                expires,
-                cliente,
-                proyectos
-            })
+            const statusOciHidden = req.body.statusOciHidden
+            if (validateSelectField(statusOciHidden)) {
 
-        } catch (error) {
-            const errorInfo = {
-                errorNumber: 2406,
-                status: false,
-                msg: 'controllerError - updateStatusOci'
+                await this.projects.updateStatusOci(
+                    id, 
+                    proyecto,
+                    statusOciHidden,
+                    ociKNumber,
+                    userModificator
+                )
+
+                await this.clients.updateClient(
+                    clientId, 
+                    cliente, 
+                    userModificator
+                )
+
+                const proyectos = await this.projects.getProjectsByClientId(clientId)
+                if (!proyecto || !proyectos || !cliente) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+                
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('clientProjectsDetails', {
+                    username,
+                    userInfo,
+                    expires,
+                    cliente,
+                    proyectos,
+                    data,
+                    csrfToken
+                })
+
+            } else {
+                const err = new Error('Datos inválidos');
+                err.dirNumber = 400;
+                return next(err);
             }
-            res.render('errorPages', {
-                error,
-                errorInfo
-            })
+
+            function validateSelectField(value) {
+                const validOptions = [
+                    'true', 'false'
+                ];
+                return validOptions.includes(value);
+            }
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    updateStatusOt = async (req, res) => {
+    updateStatusOt = async (req, res, next) => {
         const id = req.params.id
         const mainProyecto = await this.projects.selectProjectsByMainProjectId(id)
         
         const clientId = mainProyecto[0].client[0]._id
         const cliente = await this.clients.selectClientById(clientId)
         
-        const statusOtHidden = req.body.statusOtHidden
         const ociKNumberHidden = parseInt(req.body.ociKNumberHidden)
         const otKNumberHidden = parseInt(req.body.otKNumberHidden)
         
@@ -2461,64 +2490,72 @@ class ProjectsController {
         const userCreator = await this.users.getUserById(userId)
         
         const userModificator = [{
-                    name: userCreator.name,
-                    lastName: userCreator.lastName,
-                    username: userCreator.username,
-                    email: userCreator.email
-                }]
+            name: userCreator.name,
+            lastName: userCreator.lastName,
+            username: userCreator.username,
+            email: userCreator.email
+        }]
 
         const cookie = req.session.cookie
         const time = cookie.expires
         const expires = new Date(time)
         
-        await this.projects.updateStatusOt(
-            id, 
-            mainProyecto,
-            statusOtHidden,
-            ociKNumberHidden,
-            otKNumberHidden,
-            userModificator
-        )
-
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            userModificator
-        )
-
-        const proyecto = await this.projects.selectProjectsByMainProjectId(id)
-        
-        const data = { // Inicializar variables en servidor
-            k: 0, 
-            m: 0,
-            j: 0
-        }
-
         try {
-            if (!proyecto) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('projectSelectedDetail', {
-                proyecto,
-                username,
-                userInfo,
-                expires,
-                cliente,
-                data
-            })
+            await this.projects.updateStatusOt(
+                id, 
+                mainProyecto,
+                statusOtHidden,
+                ociKNumberHidden,
+                otKNumberHidden,
+                userModificator
+            )
 
-        } catch (error) {
-            const errorInfo = {
-                errorNumber: 2471,
-                status: false,
-                msg: 'controllerError - updateStatusOt'
+            await this.clients.updateClient(
+                clientId, 
+                cliente, 
+                userModificator
+            )
+
+            const statusOtHidden = req.body.statusOtHidden
+            if (validateSelectField(statusOtHidden)) {
+                const proyecto = await this.projects.selectProjectsByMainProjectId(id)
+                if (!proyecto || mainProyecto || !cliente) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+                
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('projectSelectedDetail', {
+                    proyecto,
+                    username,
+                    userInfo,
+                    expires,
+                    cliente,
+                    data,
+                    csrfToken
+                })
+
+            } else {
+                const err = new Error('Datos inválidos');
+                err.dirNumber = 400;
+                return next(err);
             }
-            res.render('errorPages', {
-                error,
-                errorInfo
-            })
+
+            function validateSelectField(value) {
+                const validOptions = [
+                    'true', 'false'
+                ];
+                return validOptions.includes(value);
+            }
+
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    addNewOciToProject = async (req, res) => {
+    addNewOciToProject = async (req, res, next) => {
         //------ Storage Client Logo Image in Google Store --------
         const storage = multer.memoryStorage({
             fileFilter: (req, file, cb) => {
@@ -2534,10 +2571,9 @@ class ProjectsController {
                 storage: storage
             }).any()
         
-        uploadMulter(req, res, async (err) => {
-
+        uploadMulter(req, res, next, async (err) => {
             if (req.files && req.files.length != 0) {
-                uploadToGCS(req, res)
+                uploadToGCS(req, res, next)
             }
               
             const id = req.params.id
@@ -2566,11 +2602,11 @@ class ProjectsController {
             }
 
             const modificator = {
-                        name: "",
-                        lastName: "",
-                        username: "",
-                        email: ""
-                    }
+                name: "",
+                lastName: "",
+                username: "",
+                email: ""
+            }
 
             let arrayOciNumber=[],
                 arrayOciDescription=[],
@@ -2618,44 +2654,42 @@ class ProjectsController {
                     clientId, 
                     cliente, 
                     user
-                    )
+                )
                     
                 await this.projects.addNewOciToProject(
                     projectId,
                     ociQuantity,
                     arrayOciAddedToProject
-                    )
+                )
         
                 const proyectos = await this.projects.getProjectsByClientId(clientId)
     
-                if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-                res.render('clientProjectsDetails', {
+                if (!proyecto || !proyectos || !cliente) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
+                }
+
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+
+                return res.render('clientProjectsDetails', {
                     username,
                     userInfo,
                     expires,
                     cliente,
-                    proyectos
+                    proyectos,
+                    data,
+                    csrfToken
                 })
     
-            } catch (error) {
-                const flag = {
-                    dirNumber: 500
-                }
-                const errorInfo = {
-                    errorNumber: 2545,
-                    status: false,
-                    msg: 'controllerError - addNewOciToProject'
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
+            } catch (err) {
+                err.dirNumber = 500
+                return next(err)
             }
         })
     }
 
-    updateProject = async (req, res) => {
+    updateProject = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
@@ -2693,9 +2727,9 @@ class ProjectsController {
             storage: storage
         }).single('imageProject')
 
-        uploadMulter(req, res, async (err) => {
+        uploadMulter(req, res, next ,async (err) => {
             if (req.file) {
-                uploadToGCSingleFile(req, res)
+                uploadToGCSingleFile(req, res, next)
             }
 
             const statusProject = req.body.statusProjectForm
@@ -2726,59 +2760,38 @@ class ProjectsController {
                     userModificator
                 )
 
-            } catch (error) {
-                const flag = {
-                    dirNumber: 500
+                await this.clients.updateClient(
+                    clientId, 
+                    cliente, 
+                    userModificator
+                )
+
+                const proyectos = await this.projects.getProjectsByClientId(clientId)
+                if (!proyecto || !proyectos || !cliente) {
+                    const err = new Error('Proyecto no encontrado')
+                    err.dirNumber = 400
+                    return next(err)
                 }
-                const errorInfo = {
-                    errorNumber: 2673,
-                    status: false,
-                    msg: 'controllerError - updateProject'
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
+            
+                const csrfToken = csrfTokens.create(req.csrfSecret);
+                return res.render('clientProjectsDetails', {
+                    username,
+                    userInfo,
+                    expires,
+                    cliente,
+                    proyectos,
+                    data,
+                    csrfToken
                 })
+
+            } catch (err) {
+                err.dirNumber = 500
+                return next(err)
             }
         })
-
-        await this.clients.updateClient(
-            clientId, 
-            cliente, 
-            userModificator
-        )
-
-        const proyectos = await this.projects.getProjectsByClientId(clientId)
-        
-        try {
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
-                username,
-                userInfo,
-                expires,
-                cliente,
-                proyectos
-            })
-
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 2673,
-                status: false,
-                msg: 'controllerError - updateProject'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
-        }
     }
 
-    updateOci = async (req, res) => {
+    updateOci = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
@@ -2816,10 +2829,10 @@ class ProjectsController {
             storage: storage
         }).single('imageOci')
 
-        uploadMulter(req, res, async (err) => {
+        uploadMulter(req, res, next, async (err) => {
             // console.log('req.file: ', req.file)
             if (req.file) {
-                uploadToGCSingleFile(req, res)
+                uploadToGCSingleFile(req, res, next)
             }
 
             const statusOci = req.body.statusOciForm
@@ -2847,20 +2860,9 @@ class ProjectsController {
                     ociImageText,
                     userModificator
                 )
-            } catch (error) {
-                const flag = {
-                    dirNumber: 500
-                }
-                const errorInfo = {
-                    errorNumber: 2778,
-                    status: false,
-                    msg: 'controllerError - updateOci'
-                }
-                res.render('errorPages', {
-                    error,
-                    errorInfo,
-                    flag
-                })
+            } catch (err) {
+                err.dirNumber = 500
+                return next(err)
             }
         })
 
@@ -2872,34 +2874,30 @@ class ProjectsController {
             )
 
             const proyectos = await this.projects.getProjectsByClientId(clientId)
-        
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-            res.render('clientProjectsDetails', {
+            if (!proyecto || !proyectos || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+            return res.render('clientProjectsDetails', {
                 username,
                 userInfo,
                 expires,
                 cliente,
-                proyectos
+                proyectos,
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 2856,
-                status: false,
-                msg: 'controllerError - updateClient inside updateOci'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    updateOt = async (req, res) => {
+    updateOt = async (req, res, next) => {
         const id = req.params.id
         const proyectoBuscado = await this.projects.selectProjectsByMainProjectId(id)
         
@@ -2932,6 +2930,7 @@ class ProjectsController {
         const otSimulation = req.body.simulationOt
         const otSupplier = req.body.supplierOt
 
+        try {
             await this.projects.updateOt(
                 id,
                 proyectoBuscado,
@@ -2953,44 +2952,31 @@ class ProjectsController {
                 userModificator
             )
 
-            const data = { // Inicializar variables en servidor
-                k: 0, 
-                m: 0,
-                j: 0
+            const proyecto = await this.projects.selectProjectsByMainProjectId(id)
+            if (!proyecto || !proyectoBuscado || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
             }
 
-        try {
-            const proyecto = await this.projects.selectProjectsByMainProjectId(id)
-            
-            if (!proyecto) return res.status(404).json({ msg: 'Proyecto no encontrado' })
+            const csrfToken = csrfTokens.create(req.csrfSecret);
             res.render('projectSelectedDetail', {
                 proyecto,
                 username,
                 userInfo,
                 expires,
                 cliente,
-                data
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 2886,
-                status: false,
-                msg: 'controllerError - updateOt'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    deleteOci = async (req, res) => {
-        
+    deleteOci = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
@@ -3015,14 +3001,13 @@ class ProjectsController {
 
         const ociKNumber = req.body.ociKNumberHidden
         
-        try {
-            
+        try { 
             await this.projects.deleteOci(
                 id, 
                 proyecto,
                 ociKNumber,
                 userModificator
-                )
+            )
                                 
             const cliente = await this.clients.updateClient(
                 clientId, 
@@ -3032,33 +3017,31 @@ class ProjectsController {
 
             const proyectos = await this.projects.getProjectsByClientId(clientId)
                 
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-                res.render('clientProjectsDetails', {
+            if (!proyecto || !proyectos || !clienteSeleccionado || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+
+            return res.render('clientProjectsDetails', {
                     username,
                     userInfo,
                     expires,
                     cliente,
-                    proyectos
+                    proyectos,
+                    data,
+                    csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 2972,
-                status: false,
-                msg: 'controllerError - deleteOci'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    deleteOt = async (req, res) => {
+    deleteOt = async (req, res, next) => {
         const id = req.params.id
         const mainProyecto = await this.projects.selectProjectsByMainProjectId(id)
         
@@ -3101,40 +3084,31 @@ class ProjectsController {
 
             const proyecto = await this.projects.selectProjectsByMainProjectId(id)
 
-            const data = { // Inicializar variables en servidor
-                k: 0, 
-                m: 0,
-                j: 0
+            if (!proyecto || !mainProyecto || !clienteSeleccionado || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
             }
 
-            if (!proyecto) return res.status(404).json({ msg: 'Proyecto no encontrado' })
-                res.render('projectSelectedDetail', {
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+            
+            return res.render('projectSelectedDetail', {
                     username,
                     userInfo,
                     expires,
                     cliente,
                     proyecto,
-                    data
+                    data,
+                    csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 3037,
-                status: false,
-                msg: 'controllerError - deleteOt'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 
-    deleteProjectById = async (req, res) => {
+    deleteProjectById = async (req, res, next) => {
         const id = req.params.id
         const proyecto = await this.projects.selectProjectByProjectId(id)
         
@@ -3170,29 +3144,27 @@ class ProjectsController {
                 userModificator
             )
                 
-            if (!proyectos) return res.status(404).json({ msg: 'Proyecto no encontrado' })
+            if (!proyecto || !proyectos || !clienteSeleccionado || !cliente) {
+                const err = new Error('Proyecto no encontrado')
+                err.dirNumber = 400
+                return next(err)
+            }
+
+            const csrfToken = csrfTokens.create(req.csrfSecret);
+
             res.render('clientProjectsDetails', {
                 username,
                 userInfo,
                 expires,
                 cliente,
-                proyectos
+                proyectos,
+                data,
+                csrfToken
             })
 
-        } catch (error) {
-            const flag = {
-                dirNumber: 500
-            }
-            const errorInfo = {
-                errorNumber: 3109,
-                status: false,
-                msg: 'controllerError - deleteProjectById'
-            }
-            res.render('errorPages', {
-                error,
-                errorInfo,
-                flag
-            })
+        } catch (err) {
+            err.dirNumber = 500
+            return next(err)
         }
     }
 }

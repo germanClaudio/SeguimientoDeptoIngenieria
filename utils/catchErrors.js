@@ -1,19 +1,15 @@
-function catchErrors(err, req, res, next) {
-    console.log('..catchError: ', err)
-    let errorInfo = errorInformation(err.dirNumber)
-    
-    return res.render('errorPages', {
-        err,
-        errorInfo
-    })
-}
-                
-function errorInformation(dirNumber, error){
-    const errorInfo = {
-        msgErr: error,
-        flag: dirNumber
-    }
-    return errorInfo
+function catchError400(req, res, next) {
+    const err = new Error('No existen Proyectos Cargados')
+    err.dirNumber = 400
+    return next(err)
 }
 
-module.exports = catchErrors
+function catchError500(err, req, res, next) {
+    err.dirNumber = 500
+    return next(err)
+}
+
+module.exports = {
+    catchError400,
+    catchError500
+}

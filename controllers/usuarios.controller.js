@@ -6,13 +6,13 @@ const MessagesService = require("../services/messages.service.js")
 const { uploadToGCS } = require("../utils/uploadFilesToGSC.js")
 const { generateToken } = require('../utils/generateToken')
 
+let now = require('../utils/formatDate.js')
 const bCrypt = require('bcrypt')
-const multer = require('multer')
 
 const csrf = require('csrf');
 const csrfTokens = csrf();
 
-let now = require('../utils/formatDate.js')
+const multer = require('multer')
 let userPictureNotFound = "../../../src/images/upload/AvatarUsersImages/incognito.jpg"
 
 const sessionTime = parseInt(process.env.SESSION_TIME) // 12 HORAS

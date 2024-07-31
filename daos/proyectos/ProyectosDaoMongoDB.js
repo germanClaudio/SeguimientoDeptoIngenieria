@@ -159,15 +159,36 @@ class ProyectosDaoMongoDB extends ContenedorMongoDB {
         }
     }
 
-    // Select one OCI by Oci Number ----------------
-    async selectOciByOciNumber(numberOci) {
+    // Get all OCI from all projects -----------
+    async getAllOciNumbers() {
+        try {
+            const ocis = await Proyectos.find(
+                'project.0.oci.' 
+            )
+            console.log('ocis: ', ocis)    
+            if (ocis === undefined || ocis === null) {
+                    return new Error('No hay ocis cargadas en este proyecto!')
+            } else {
+                return ocis
+            }
+
+        } catch (error) {
+            console.error("Error MongoDB getAllOciNumbers: ", error)
+            return new Error('No hay ocis en la DB!')
+        }
+    }
+
+    // Select one OCI by Oci Number and k OCI number----------------
+    async selectOciByOciNumber(numberOci, ociKNumber) {
         const numberOciParsed = parseInt(numberOci)
+        const numberKOciParsed = parseInt(ociKNumber)
+
         if (numberOciParsed) {
             try {
                 const project = await Proyectos.find({
-                    [`project.0.oci.${numberOciParsed}.ociNumber`]: numberOciParsed
+                    [`project.0.oci.${numberKOciParsed}.ociNumber`]: numberOciParsed
                 })
-                return project
+                return project ? numberOciParsed : null
 
             } catch (error) {
                 console.error("Error MongoDB selectOciByOciNumber: ", error)
@@ -179,6 +200,34 @@ class ProyectosDaoMongoDB extends ContenedorMongoDB {
                 return projects
             } catch (error) {
                 console.error("Error MongoDB selectOciByOciNumber: ", error)
+            }
+        }
+    }
+
+    // Select one OT by OT Number and k OT number----------------
+    async selectOtByOtNumber(numberOt, otKNumber, numberOci, ociKNumber) {
+        const numberOciParsed = parseInt(numberOci)
+        const numberKOciParsed = parseInt(ociKNumber)
+        const numberOtParsed = parseInt(numberOt)
+        const numberKOtParsed = parseInt(otKNumber)
+
+        if (numberOtParsed && numberOciParsed) {
+            try {
+                const project = await Proyectos.find({
+                    [`project.0.oci.${numberKOciParsed}.otProject.${numberKOtParsed}.otNumber`]: numberOtParsed
+                })
+                return project ? numberOtParsed : null
+
+            } catch (error) {
+                console.error("Error MongoDB selectOtByOtNumber: ", error)
+            }
+
+        } else {
+            try {
+                const projects = await Proyectos.find()
+                return projects
+            } catch (error) {
+                console.error("Error MongoDB selectOtByOtNumber: ", error)
             }
         }
     }
@@ -2941,8 +2990,7 @@ class ProyectosDaoMongoDB extends ContenedorMongoDB {
                 statusOci=='on' ? booleanStatus=true : booleanStatus=false
                 ociImage ? ociImage : itemMongoDB.project[0].oci[numberOciK].ociImage
 
-                if (itemMongoDB) {
-                    
+                if (itemMongoDB) {            
                     var updatedOci = await Proyectos.updateOne(
                         { _id: itemMongoDB._id },
                         {

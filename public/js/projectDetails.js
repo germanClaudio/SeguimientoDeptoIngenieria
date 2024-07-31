@@ -109,7 +109,7 @@ btnAddNewRow.addEventListener('click', () => {
                 </div>
             </div>
             <div class="col ms-3">
-                <label for="newOciImage${i}" id="labelNewOciImage${i}">Seleccione una imagen para la OCI</label>
+                <label for="fileInputNewOciText${i}" id="labelNewOciImage${i}">Seleccione una imagen para la OCI</label>
                 <input type="text" id="fileInputNewOciText${i}" name="imageOciFileName${i}" 
                     style="display: none;">
                 <input type="file" id="fileInputNewOci${i}" name="imageNewOci${i}" value=""
@@ -1109,13 +1109,15 @@ function messageUpdateOci(
     var html = `<form id="formUpdateOci${k}" enctype="multipart/form-data" action="/api/proyectos/updateOci/${projectId}" method="post">
                     <fieldset>
                         <div class="row justify-content-evenly mb-3 mx-1 px-1">
-                            <div class="col-6">
-                                <label for="numberOci" class="form-label d-flex justify-content-start ms-1">Número OCI</label>
-                                <input type="number" name="numberOci" class="form-control"
-                                    placeholder="Número OCI" value="${numberOci}" required>
+                            <div class="col-3">
+                                <label for="numberOciModal" class="form-label d-flex justify-content-start ms-1">Número OCI</label>
+                                <input type="number" name="numberOci" id="numberOciModal" class="form-control" placeholder="Número OCI" value="${numberOci}" disabled required>
                             </div>
-                            
-                            <div class="col-6" style="${bgColorStatus}">
+                            <div class="col-5 my-auto">
+                                <input class="form-check-input" type="checkbox" name="confirmationNumberOci" id="confirmationNumberOci" value="true">
+                                <label class="form-check-label" for="confirmationNumberOci">Confirmar Cambio N° OCI</label>
+                            </div>
+                            <div class="col-4" style="${bgColorStatus}">
                                 <label for="statusOci" class="form-label d-flex justify-content-start ms-1">Status OCI</label>
                                 <div>
                                     <p class="d-inline-block me-1">Inactiva</p>
@@ -1166,17 +1168,9 @@ function messageUpdateOci(
                                     style="display: none; font-size: 0.65rem; height: 1rem;">
                                     <strong class="me-2">Atención!</strong> El tamaño de la imagen debe ser menor a 3Mb.
                                 </div>
-
                             </div>
                         </div>
-                        
-                        <div class="row justify-content-evenly mb-1 px-1 mx-auto">
-                            <div class="col-12 my-1 mx-auto px-1">
-                            <label class="form-label d-flex justify-content-start ms-1">Imagen actual de la OCI# ${numberOci}</label>
-                                <img src="${imageOci}" class="img-fluid rounded px-1"
-                                    alt="Imagen OCI" width="115px">
-                            </div>
-                        </div>
+                        <input type="hidden" name="numberOciHidden" id="ociNumberHidden${k}" value="${numberOci}">
                         <input type="hidden" name="ociKNumberHidden" id="ociKNumberHidden${k}" value="${k}">
                     </fieldset>
                 </form>`
@@ -1187,8 +1181,10 @@ function messageUpdateOci(
             title: `Actualizar OCI# ${numberOci} - Alias: ${aliasOci}`,
             position: 'center',
             html: html,
-            width: 700,
-            icon: 'info',
+            width: 750,
+            // icon: 'info',
+            imageUrl: `${imageOci}`,
+            imageWidth: `25%`,
             showCancelButton: true,
             showConfirmButton: true,
             focusConfirm: false,
@@ -1426,7 +1422,7 @@ function messageDeleteOci(
     
     if(projectId && ociNumber) {
         Swal.fire({
-            title: `Eliminar OCI# ${ociNumber} - ${ociAlias}?`,
+            title: `Eliminar OCI# ${ociNumber} - ${ociAlias} ?`,
             position: 'center',
             html: htmlForm,
             icon: 'question',
@@ -1509,7 +1505,7 @@ arrayBtnChangeStatusOci.forEach(function(elemento) {
         
         messageChangeOciStatus(
             statusOci, 
-            ociNumber, 
+            ociNumber,
             elemento.id
         )
     })
@@ -1525,7 +1521,7 @@ arrayBtnUpdateOci.forEach(function(element) {
         const ociAlias = document.getElementById(`ociAlias${element.id.slice(12)}`).innerText
         const ociNumber = document.getElementById(`ociNumberHidden${element.id.slice(12)}`).value
         const ociKNumber = document.getElementById(`ociKNumberHidden${element.id.slice(12)}`).value
-    
+
         messageUpdateOci(
             projectId,
             statusOci,
@@ -2293,7 +2289,7 @@ function messageUpdateProject(
                         
                         <div class="row justify-content-start align-items-center mb-1 mx-1 px-1">
                             <div class="col mb-1">
-                                <label for="imageProject" class="form-label d-flex justify-content-start ms-1">Seleccione una imagen para el Proyecto</label>
+                                <label for="fileInputText" class="form-label d-flex justify-content-start ms-1">Seleccione una imagen para el Proyecto</label>
                                 
                                 <input type="text" id="fileInputText" name="imageProjectFileName"
                                     value="" style="display: none;" required>
@@ -2319,14 +2315,6 @@ function messageUpdateProject(
 
                             </div>
                         </div>
-                        
-                        <div class="row justify-content-evenly mb-1 px-1 mx-auto">
-                            <div class="col-12 my-1 mx-auto px-1">
-                                <label class="form-label d-flex justify-content-start ms-1">Imagen actual del Proyecto</label>
-                                <img src="${imgProject}" class="img-fluid rounded px-1"
-                                    alt="Imagen Proyecto" width="115px">
-                            </div>
-                        </div>
                     </fieldset>
                 </form>`
                 
@@ -2337,7 +2325,9 @@ function messageUpdateProject(
             position: 'center',
             html: html,
             width: 700,
-            icon: 'info',
+            // icon: 'info',
+            imageUrl: `${imgProject}`,
+            imageWidth: `25%`,
             showCloseButton: true,
             showCancelButton: true,
             showConfirmButton: true,
@@ -2675,7 +2665,6 @@ btnOtNumberSpot.forEach(function(btnSpot) {
             arrow: true,
             animation: 'scale',
             theme: 'material',
-            // followCursor: true,
             interactive: true,
             hideOnClick: true,
         })
@@ -2718,7 +2707,9 @@ function disabledBtnAceptar () {
     const dropAreasOciFileModal0 = document.getElementById(`drop-area-ociModal0`)
     const dropAreaOci = document.getElementById('drop-area-oci')
     const dropAreaProject = document.getElementById('drop-areaProject')
-    
+    const checkbox = document.getElementById('confirmationNumberOci')
+    const ociNumberDisabled = document.getElementById('numberOciModal')
+
     const removeBtnImage = document.getElementById('removeImage')
     if (removeBtnImage) {
         removeBtnImage.addEventListener('transitionend', () => {
@@ -2762,8 +2753,13 @@ function disabledBtnAceptar () {
                 event.preventDefault()
                 input.classList.toggle("bg-danger")
                 btnAceptarModal[0].removeAttribute('disabled')
-                btnAceptarModal[0].style = "cursor: pointer;"
-            })    
+                btnAceptarModal[0].style = "cursor: pointer;" 
+                
+                checkbox.checked ? 
+                    ociNumberDisabled.removeAttribute('disabled')
+                :
+                    ociNumberDisabled.setAttribute('disabled', 'true')
+            })
         }        
     })
 

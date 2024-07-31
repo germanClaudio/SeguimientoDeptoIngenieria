@@ -36,6 +36,11 @@ class ProjectService {
         return this.proyectos.getAllOciProjects()
     }
 
+    // returns all OCI Numbers from one project
+    async getAllOciNumbers() {
+        return this.proyectos.getAllOciNumbers()
+    }
+
     // add new project to a Client
     async addProjectToClient(payload) {
         return this.proyectos.createNewProject(payload)
@@ -162,8 +167,13 @@ class ProjectService {
 
     
     // Select OCI - Project
-    async selectOciByOciNumber(numberOci) {
-        return this.proyectos.selectOciByOciNumber(numberOci)
+    async selectOciByOciNumber(numberOci, ociKNumber) {
+        return this.proyectos.selectOciByOciNumber(numberOci, ociKNumber)
+    }
+
+    // Select OT - Project
+    async selectOtByOtNumber(numberOt, otKNumber, ociKNumber) {
+        return this.proyectos.selectOtByOtNumber(numberOt, otKNumber, ociKNumber)
     }
 
     // Update Status Project by id
